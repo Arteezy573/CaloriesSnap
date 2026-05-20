@@ -70,7 +70,7 @@ export default function SnapScreen() {
   async function handleSaveMeal() {
     setSaving(true);
     try {
-      await createMeal({ source: "photo", foods, image_path: imageUri });
+      await createMeal({ source: "photo", foods, image_path: imageUri ?? undefined });
       Alert.alert("Saved!", "Meal added to your log.");
       resetState();
       router.navigate("/");
