@@ -1,7 +1,10 @@
 import os
-import shutil
 import uuid
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+
+load_dotenv()
 from datetime import date
 from io import BytesIO
 from pathlib import Path
