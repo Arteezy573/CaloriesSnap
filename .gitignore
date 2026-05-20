@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+.superpowers/
+*.db
+__pycache__/
+backend/uploads/*.jpg
+backend/uploads/*.jpeg
+backend/uploads/*.png
