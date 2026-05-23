@@ -13,22 +13,33 @@ def get_db(path: str = "caloriessnap.db") -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS goals (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
             calories INTEGER NOT NULL DEFAULT 2000,
             protein_g INTEGER NOT NULL DEFAULT 150,
             carbs_g INTEGER NOT NULL DEFAULT 250,
             fat_g INTEGER NOT NULL DEFAULT 65,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
         CREATE TABLE IF NOT EXISTS meals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
             time TEXT NOT NULL,
             source TEXT NOT NULL CHECK(source IN ('photo', 'manual')),
             image_path TEXT,
-            notes TEXT
+            notes TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
         CREATE TABLE IF NOT EXISTS food_items (
@@ -43,33 +54,59 @@ def init_db(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE
         );
     """)
-    cursor = conn.execute("SELECT COUNT(*) FROM goals")
-    if cursor.fetchone()[0] == 0:
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT INTO goals (id, calories, protein_g, carbs_g, fat_g, updated_at) VALUES (1, 2000, 150, 250, 65, ?)",
-            (now,),
+
+
+def create_user(conn: sqlite3.Connection, email: str, password_hash: str) -> int | None:
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            (email, password_hash, now),
         )
         conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError:
+        return None
 
 
-def get_goals(conn: sqlite3.Connection) -> dict:
-    row = conn.execute("SELECT * FROM goals WHERE id = 1").fetchone()
+def get_user_by_email(conn: sqlite3.Connection, email: str) -> dict | None:
+    row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_goals(conn: sqlite3.Connection, user_id: int) -> dict:
+    row = conn.execute("SELECT * FROM goals WHERE user_id = ?", (user_id,)).fetchone()
+    if row is None:
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO goals (user_id, calories, protein_g, carbs_g, fat_g, updated_at) VALUES (?, 2000, 150, 250, 65, ?)",
+            (user_id, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM goals WHERE user_id = ?", (user_id,)).fetchone()
     return dict(row)
 
 
-def update_goals(conn: sqlite3.Connection, calories: int, protein_g: int, carbs_g: int, fat_g: int) -> dict:
+def update_goals(conn: sqlite3.Connection, user_id: int, calories: int, protein_g: int, carbs_g: int, fat_g: int) -> dict:
     now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        "UPDATE goals SET calories=?, protein_g=?, carbs_g=?, fat_g=?, updated_at=? WHERE id=1",
-        (calories, protein_g, carbs_g, fat_g, now),
-    )
+    existing = conn.execute("SELECT id FROM goals WHERE user_id = ?", (user_id,)).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE goals SET calories=?, protein_g=?, carbs_g=?, fat_g=?, updated_at=? WHERE user_id=?",
+            (calories, protein_g, carbs_g, fat_g, now, user_id),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO goals (user_id, calories, protein_g, carbs_g, fat_g, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, calories, protein_g, carbs_g, fat_g, now),
+        )
     conn.commit()
-    return get_goals(conn)
+    return get_goals(conn, user_id)
 
 
 def create_meal(
     conn: sqlite3.Connection,
+    user_id: int,
     date: str,
     source: str,
     foods: list[dict],
@@ -78,8 +115,8 @@ def create_meal(
 ) -> int:
     now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
-        "INSERT INTO meals (date, time, source, image_path, notes) VALUES (?, ?, ?, ?, ?)",
-        (date, now, source, image_path, notes),
+        "INSERT INTO meals (user_id, date, time, source, image_path, notes) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, date, now, source, image_path, notes),
     )
     meal_id = cursor.lastrowid
     for food in foods:
@@ -91,9 +128,9 @@ def create_meal(
     return meal_id
 
 
-def get_meals_by_date(conn: sqlite3.Connection, date: str) -> list[dict]:
+def get_meals_by_date(conn: sqlite3.Connection, user_id: int, date: str) -> list[dict]:
     meals = conn.execute(
-        "SELECT * FROM meals WHERE date = ? ORDER BY time", (date,)
+        "SELECT * FROM meals WHERE user_id = ? AND date = ? ORDER BY time", (user_id, date)
     ).fetchall()
     result = []
     for meal in meals:
@@ -108,14 +145,14 @@ def get_meals_by_date(conn: sqlite3.Connection, date: str) -> list[dict]:
     return result
 
 
-def delete_meal(conn: sqlite3.Connection, meal_id: int) -> bool:
-    cursor = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
+def delete_meal(conn: sqlite3.Connection, user_id: int, meal_id: int) -> bool:
+    cursor = conn.execute("DELETE FROM meals WHERE id = ? AND user_id = ?", (meal_id, user_id))
     conn.commit()
     return cursor.rowcount > 0
 
 
-def get_daily_summary(conn: sqlite3.Connection, date: str) -> dict:
-    goals = get_goals(conn)
+def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:
+    goals = get_goals(conn, user_id)
     row = conn.execute(
         """
         SELECT
@@ -126,9 +163,9 @@ def get_daily_summary(conn: sqlite3.Connection, date: str) -> dict:
             COUNT(DISTINCT m.id) as meals_count
         FROM meals m
         LEFT JOIN food_items fi ON fi.meal_id = m.id
-        WHERE m.date = ?
+        WHERE m.user_id = ? AND m.date = ?
         """,
-        (date,),
+        (user_id, date),
     ).fetchone()
 
     consumed_cal = int(row["calories"])

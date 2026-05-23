@@ -3,7 +3,7 @@ import tempfile
 
 import pytest
 
-from database import get_db, init_db
+from database import get_db, init_db, create_user
 
 
 @pytest.fixture
@@ -15,3 +15,9 @@ def db():
     yield conn
     conn.close()
     os.unlink(path)
+
+
+@pytest.fixture
+def test_user(db):
+    user_id = create_user(db, email="test@example.com", password_hash="fakehash")
+    return user_id
