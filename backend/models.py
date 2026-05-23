@@ -91,3 +91,35 @@ class SummaryResponse(BaseModel):
     consumed: MacroTotals
     remaining: MacroTotals
     meals_count: int
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Invalid email format")
+        return v.lower().strip()
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserResponse
