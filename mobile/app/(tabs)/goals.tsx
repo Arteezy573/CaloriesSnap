@@ -9,15 +9,23 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { getGoals, updateGoals } from "../../services/api";
+import { clearToken } from "../../services/auth";
 
 export default function GoalsScreen() {
+  const router = useRouter();
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  async function handleLogout() {
+    await clearToken();
+    router.replace("/(auth)/login");
+  }
 
   useEffect(() => {
     loadGoals();
@@ -109,6 +117,10 @@ export default function GoalsScreen() {
       <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? "Saving..." : "Save Goals"}</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Log Out</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -134,4 +146,13 @@ const styles = StyleSheet.create({
     marginTop: 32,
   },
   buttonText: { color: "#000", fontSize: 16, fontWeight: "bold" },
+  logoutButton: {
+    borderRadius: 10,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#ff6b6b",
+  },
+  logoutText: { color: "#ff6b6b", fontSize: 16, fontWeight: "bold" },
 });
