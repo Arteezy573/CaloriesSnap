@@ -44,7 +44,7 @@ from models import (
 _db_conn = None
 anthropic_client = None
 
-UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "uploads"))
 MAX_IMAGE_DIMENSION = 1024
 
 
