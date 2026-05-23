@@ -15,22 +15,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image as PILImage
 
 from analyzer import analyze_image, analyze_text
+from auth import get_current_user, hash_password, verify_password, create_token
 from database import (
     create_meal,
+    create_user,
     delete_meal,
     get_daily_summary,
     get_db,
     get_goals,
     get_meals_by_date,
+    get_user_by_email,
     init_db,
     update_goals,
 )
 from models import (
     AnalyzeResponse,
+    AuthResponse,
     GoalsRequest,
     GoalsResponse,
+    LoginRequest,
     MealRequest,
     MealResponse,
+    RegisterRequest,
     SummaryResponse,
     TextAnalyzeRequest,
 )
@@ -77,14 +83,33 @@ app.add_middleware(
 )
 
 
+@app.post("/api/register", response_model=AuthResponse, status_code=201)
+def register(req: RegisterRequest, conn=Depends(get_db_conn)):
+    password_hash = hash_password(req.password)
+    user_id = create_user(conn, email=req.email, password_hash=password_hash)
+    if user_id is None:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    token = create_token(user_id=user_id, email=req.email)
+    return {"token": token, "user": {"id": user_id, "email": req.email}}
+
+
+@app.post("/api/login", response_model=AuthResponse)
+def login(req: LoginRequest, conn=Depends(get_db_conn)):
+    user = get_user_by_email(conn, req.email)
+    if user is None or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_token(user_id=user["id"], email=user["email"])
+    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+
+
 @app.get("/api/goals", response_model=GoalsResponse)
-def read_goals(conn=Depends(get_db_conn)):
-    return get_goals(conn)
+def read_goals(conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_goals(conn, user["id"])
 
 
 @app.put("/api/goals", response_model=GoalsResponse)
-def set_goals(req: GoalsRequest, conn=Depends(get_db_conn)):
-    return update_goals(conn, req.calories, req.protein_g, req.carbs_g, req.fat_g)
+def set_goals(req: GoalsRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g)
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -92,6 +117,7 @@ async def analyze_food(
     file: UploadFile | None = File(None),
     food_description: str | None = None,
     conn=Depends(get_db_conn),
+    user=Depends(get_current_user),
 ):
     if file:
         raw_bytes = await file.read()
@@ -110,22 +136,23 @@ async def analyze_food(
 
 
 @app.post("/api/analyze_text", response_model=AnalyzeResponse)
-def analyze_food_text(req: TextAnalyzeRequest):
+def analyze_food_text(req: TextAnalyzeRequest, user=Depends(get_current_user)):
     return analyze_text(anthropic_client, req.food_description)
 
 
 @app.post("/api/meals", response_model=MealResponse)
-def create_new_meal(req: MealRequest, conn=Depends(get_db_conn)):
+def create_new_meal(req: MealRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     foods = [f.model_dump() for f in req.foods]
     meal_id = create_meal(
         conn,
+        user_id=user["id"],
         date=date.today().isoformat(),
         source=req.source,
         foods=foods,
         image_path=req.image_path,
         notes=req.notes,
     )
-    meals = get_meals_by_date(conn, date.today().isoformat())
+    meals = get_meals_by_date(conn, user["id"], date.today().isoformat())
     for m in meals:
         if m["id"] == meal_id:
             return m
@@ -133,18 +160,18 @@ def create_new_meal(req: MealRequest, conn=Depends(get_db_conn)):
 
 
 @app.get("/api/meals", response_model=list[MealResponse])
-def read_meals(date: str, conn=Depends(get_db_conn)):
-    return get_meals_by_date(conn, date)
+def read_meals(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_meals_by_date(conn, user["id"], date)
 
 
 @app.delete("/api/meals/{meal_id}")
-def remove_meal(meal_id: int, conn=Depends(get_db_conn)):
-    deleted = delete_meal(conn, meal_id)
+def remove_meal(meal_id: int, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    deleted = delete_meal(conn, user["id"], meal_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Meal not found")
     return {"ok": True}
 
 
 @app.get("/api/summary", response_model=SummaryResponse)
-def read_summary(date: str, conn=Depends(get_db_conn)):
-    return get_daily_summary(conn, date)
+def read_summary(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_daily_summary(conn, user["id"], date)
