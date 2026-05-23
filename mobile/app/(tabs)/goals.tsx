@@ -9,12 +9,10 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { getGoals, updateGoals } from "../../services/api";
-import { clearToken } from "../../services/auth";
+import { clearToken, notifyAuthChange } from "../../services/auth";
 
 export default function GoalsScreen() {
-  const router = useRouter();
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -24,7 +22,7 @@ export default function GoalsScreen() {
 
   async function handleLogout() {
     await clearToken();
-    router.replace("/(auth)/login");
+    notifyAuthChange(false);
   }
 
   useEffect(() => {

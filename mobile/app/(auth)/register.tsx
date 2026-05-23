@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { register } from "../../services/api";
-import { setToken } from "../../services/auth";
+import { setToken, notifyAuthChange } from "../../services/auth";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function RegisterScreen() {
     try {
       const result = await register(email.trim(), password);
       await setToken(result.token);
-      router.replace("/(tabs)");
+      notifyAuthChange(true);
     } catch (e: any) {
       const msg = e.message.includes("409")
         ? "An account with this email already exists."

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { login } from "../../services/api";
-import { setToken } from "../../services/auth";
+import { setToken, notifyAuthChange } from "../../services/auth";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function LoginScreen() {
     try {
       const result = await login(email.trim(), password);
       await setToken(result.token);
-      router.replace("/(tabs)");
+      notifyAuthChange(true);
     } catch (e: any) {
       const msg = e.message.includes("401")
         ? "Invalid email or password."

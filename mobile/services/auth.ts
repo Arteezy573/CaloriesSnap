@@ -14,6 +14,16 @@ export async function clearToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+let onAuthStateChange: ((authenticated: boolean) => void) | null = null;
+
+export function setOnAuthStateChange(cb: (authenticated: boolean) => void) {
+  onAuthStateChange = cb;
+}
+
+export function notifyAuthChange(authenticated: boolean) {
+  onAuthStateChange?.(authenticated);
+}
+
 export function isTokenExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));

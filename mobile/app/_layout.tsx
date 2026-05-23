@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { getToken, isTokenExpired } from "../services/auth";
+import { getToken, isTokenExpired, setOnAuthStateChange } from "../services/auth";
 import { setOnUnauthorized } from "../services/api";
 
 export default function RootLayout() {
@@ -17,6 +17,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     setOnUnauthorized(handleUnauthorized);
+    setOnAuthStateChange(setIsAuthenticated);
   }, [handleUnauthorized]);
 
   useEffect(() => {
