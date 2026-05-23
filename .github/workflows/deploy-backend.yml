@@ -1,0 +1,40 @@
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        working-directory: backend
+        run: python -m pytest -v
+
+      - name: Create deployment package
+        run: |
+          cd backend
+          zip -r ../deploy.zip . -x "tests/*" "__pycache__/*" "*.pyc" ".pytest_cache/*" "uploads/*" "*.db" "*.db-shm" "*.db-wal" ".env"
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'caloriessnap'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: deploy.zip
