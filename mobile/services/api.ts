@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { getToken, clearToken } from "./auth";
 
 export interface FoodItem {
   id?: number;
@@ -44,14 +45,64 @@ export interface DailySummary {
   meals_count: number;
 }
 
+export interface AuthResponse {
+  token: string;
+  user: { id: number; email: string };
+}
+
+let onUnauthorized: (() => void) | null = null;
+
+export function setOnUnauthorized(callback: () => void) {
+  onUnauthorized = callback;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const resp = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const headers = {
+    "Content-Type": "application/json",
+    ...(await authHeaders()),
+    ...options?.headers,
+  };
+  const resp = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  if (resp.status === 401 || resp.status === 403) {
+    await clearToken();
+    onUnauthorized?.();
+    throw new Error("Session expired");
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`API error ${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function register(email: string, password: string): Promise<AuthResponse> {
+  const resp = await fetch(`${API_BASE_URL}/api/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const resp = await fetch(`${API_BASE_URL}/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
   }
   return resp.json();
 }
@@ -65,10 +116,17 @@ export async function analyzePhoto(imageUri: string): Promise<AnalyzeResponse> {
     type: "image/jpeg",
   } as any);
 
+  const headers = await authHeaders();
   const resp = await fetch(`${API_BASE_URL}/api/analyze`, {
     method: "POST",
     body: formData,
+    headers,
   });
+  if (resp.status === 401 || resp.status === 403) {
+    await clearToken();
+    onUnauthorized?.();
+    throw new Error("Session expired");
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`Analyze error ${resp.status}: ${text}`);
