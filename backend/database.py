@@ -54,6 +54,26 @@ def init_db(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS saved_meals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS saved_meal_foods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            saved_meal_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            quantity TEXT NOT NULL,
+            calories INTEGER NOT NULL,
+            protein_g REAL NOT NULL,
+            carbs_g REAL NOT NULL,
+            fat_g REAL NOT NULL,
+            FOREIGN KEY (saved_meal_id) REFERENCES saved_meals(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS api_calls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -175,6 +195,51 @@ def record_api_call(conn: sqlite3.Connection, user_id: int, endpoint: str) -> No
         (user_id, endpoint, now),
     )
     conn.commit()
+
+
+def create_saved_meal(conn: sqlite3.Connection, user_id: int, name: str, foods: list[dict]) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO saved_meals (user_id, name, created_at) VALUES (?, ?, ?)",
+        (user_id, name, now),
+    )
+    saved_meal_id = cursor.lastrowid
+    for food in foods:
+        conn.execute(
+            "INSERT INTO saved_meal_foods (saved_meal_id, name, quantity, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (saved_meal_id, food["name"], food["quantity"], food["calories"], food["protein_g"], food["carbs_g"], food["fat_g"]),
+        )
+    conn.commit()
+    return saved_meal_id
+
+
+def get_saved_meals(conn: sqlite3.Connection, user_id: int, query: Optional[str] = None) -> list[dict]:
+    if query:
+        meals = conn.execute(
+            "SELECT * FROM saved_meals WHERE user_id = ? AND name LIKE ? ORDER BY created_at DESC",
+            (user_id, f"%{query}%"),
+        ).fetchall()
+    else:
+        meals = conn.execute(
+            "SELECT * FROM saved_meals WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        ).fetchall()
+    result = []
+    for meal in meals:
+        meal_dict = dict(meal)
+        foods = conn.execute(
+            "SELECT * FROM saved_meal_foods WHERE saved_meal_id = ?", (meal_dict["id"],)
+        ).fetchall()
+        meal_dict["foods"] = [dict(f) for f in foods]
+        meal_dict["total_calories"] = sum(f["calories"] for f in foods)
+        result.append(meal_dict)
+    return result
+
+
+def delete_saved_meal(conn: sqlite3.Connection, user_id: int, saved_meal_id: int) -> bool:
+    cursor = conn.execute("DELETE FROM saved_meals WHERE id = ? AND user_id = ?", (saved_meal_id, user_id))
+    conn.commit()
+    return cursor.rowcount > 0
 
 
 def get_history(conn: sqlite3.Connection, user_id: int, start: str, end: str) -> list[dict]:

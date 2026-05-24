@@ -93,6 +93,19 @@ class SummaryResponse(BaseModel):
     meals_count: int
 
 
+class SaveMealRequest(BaseModel):
+    name: str = Field(min_length=1)
+    foods: list[FoodItem]
+
+
+class SavedMealResponse(BaseModel):
+    id: int
+    name: str
+    foods: list[FoodItemResponse]
+    total_calories: int
+    created_at: str
+
+
 class HistoryEntry(BaseModel):
     date: str
     calories: int

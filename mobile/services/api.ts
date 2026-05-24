@@ -193,3 +193,27 @@ export interface HistoryEntry {
 export async function getHistory(start: string, end: string): Promise<HistoryEntry[]> {
   return request<HistoryEntry[]>(`/api/history?start=${start}&end=${end}`);
 }
+
+export interface SavedMeal {
+  id: number;
+  name: string;
+  foods: FoodItem[];
+  total_calories: number;
+  created_at: string;
+}
+
+export async function saveMealForLater(name: string, foods: FoodItem[]): Promise<SavedMeal> {
+  return request<SavedMeal>("/api/saved-meals", {
+    method: "POST",
+    body: JSON.stringify({ name, foods }),
+  });
+}
+
+export async function getSavedMeals(query?: string): Promise<SavedMeal[]> {
+  const params = query ? `?q=${encodeURIComponent(query)}` : "";
+  return request<SavedMeal[]>(`/api/saved-meals${params}`);
+}
+
+export async function deleteSavedMeal(id: number): Promise<void> {
+  await request(`/api/saved-meals/${id}`, { method: "DELETE" });
+}

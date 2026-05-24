@@ -19,13 +19,16 @@ from auth import get_current_user, hash_password, verify_password, create_token
 from database import (
     count_api_calls_today,
     create_meal,
+    create_saved_meal,
     create_user,
     delete_meal,
+    delete_saved_meal,
     get_daily_summary,
     get_db,
     get_goals,
     get_history,
     get_meals_by_date,
+    get_saved_meals,
     get_user_by_email,
     init_db,
     record_api_call,
@@ -41,6 +44,8 @@ from models import (
     MealRequest,
     MealResponse,
     RegisterRequest,
+    SaveMealRequest,
+    SavedMealResponse,
     SummaryResponse,
     TextAnalyzeRequest,
 )
@@ -200,3 +205,27 @@ def read_summary(date: str, conn=Depends(get_db_conn), user=Depends(get_current_
 @app.get("/api/history", response_model=list[HistoryEntry])
 def read_history(start: str, end: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     return get_history(conn, user["id"], start, end)
+
+
+@app.post("/api/saved-meals", response_model=SavedMealResponse, status_code=201)
+def save_meal_for_later(req: SaveMealRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    foods = [f.model_dump() for f in req.foods]
+    saved_id = create_saved_meal(conn, user["id"], req.name, foods)
+    saved = get_saved_meals(conn, user["id"])
+    for s in saved:
+        if s["id"] == saved_id:
+            return s
+    raise HTTPException(status_code=500, detail="Failed to retrieve saved meal")
+
+
+@app.get("/api/saved-meals", response_model=list[SavedMealResponse])
+def list_saved_meals(q: str | None = None, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_saved_meals(conn, user["id"], q)
+
+
+@app.delete("/api/saved-meals/{saved_meal_id}")
+def remove_saved_meal(saved_meal_id: int, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    deleted = delete_saved_meal(conn, user["id"], saved_meal_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved meal not found")
+    return {"ok": True}

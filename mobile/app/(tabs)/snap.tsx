@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  FlatList,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -16,12 +17,16 @@ import FoodItemRow from "../../components/FoodItemRow";
 import {
   FoodItem,
   AnalyzeResponse,
+  SavedMeal,
   analyzePhoto,
   analyzeText,
   createMeal,
+  saveMealForLater,
+  getSavedMeals,
+  deleteSavedMeal,
 } from "../../services/api";
 
-type Mode = "camera" | "results" | "manual";
+type Mode = "camera" | "results" | "manual" | "saved";
 
 export default function SnapScreen() {
   const router = useRouter();
@@ -39,6 +44,10 @@ export default function SnapScreen() {
   const [manCarbs, setManCarbs] = useState("");
   const [manFat, setManFat] = useState("");
   const [estimating, setEstimating] = useState(false);
+
+  const [savedMeals, setSavedMeals] = useState<SavedMeal[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loadingSaved, setLoadingSaved] = useState(false);
 
   async function takePhoto() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -78,6 +87,28 @@ export default function SnapScreen() {
       Alert.alert("Error", "Could not save meal: " + e.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveForLater() {
+    const mealName = foods.map((f) => f.name).join(", ");
+    Alert.prompt
+      ? Alert.prompt("Save for Later", "Give this meal a name:", [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: (name) => doSaveForLater(name || mealName),
+          },
+        ], "plain-text", mealName)
+      : doSaveForLater(mealName);
+  }
+
+  async function doSaveForLater(name: string) {
+    try {
+      await saveMealForLater(name, foods);
+      Alert.alert("Saved!", "Meal saved for later.");
+    } catch (e: any) {
+      Alert.alert("Error", "Could not save: " + e.message);
     }
   }
 
@@ -130,6 +161,61 @@ export default function SnapScreen() {
     }
   }
 
+  async function openSavedMeals() {
+    setMode("saved");
+    setLoadingSaved(true);
+    try {
+      const meals = await getSavedMeals();
+      setSavedMeals(meals);
+    } catch (e: any) {
+      Alert.alert("Error", "Could not load saved meals: " + e.message);
+    } finally {
+      setLoadingSaved(false);
+    }
+  }
+
+  async function searchSaved(query: string) {
+    setSearchQuery(query);
+    try {
+      const meals = await getSavedMeals(query || undefined);
+      setSavedMeals(meals);
+    } catch (e: any) {
+      // silently fail search
+    }
+  }
+
+  async function logSavedMeal(meal: SavedMeal) {
+    setSaving(true);
+    try {
+      await createMeal({ source: "manual", foods: meal.foods });
+      Alert.alert("Saved!", `"${meal.name}" added to your log.`);
+      resetState();
+      router.navigate("/");
+    } catch (e: any) {
+      Alert.alert("Error", "Could not log meal: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteSaved(meal: SavedMeal) {
+    Alert.alert("Delete", `Remove "${meal.name}" from saved meals?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteSavedMeal(meal.id);
+            setSavedMeals((prev) => prev.filter((m) => m.id !== meal.id));
+          } catch (e: any) {
+            Alert.alert("Error", "Could not delete: " + e.message);
+          }
+        },
+      },
+    ]);
+  }
+
   function resetState() {
     setMode("camera");
     setImageUri(null);
@@ -141,6 +227,8 @@ export default function SnapScreen() {
     setManProtein("");
     setManCarbs("");
     setManFat("");
+    setSearchQuery("");
+    setSavedMeals([]);
   }
 
   function updateFood(index: number, updated: FoodItem) {
@@ -148,6 +236,61 @@ export default function SnapScreen() {
   }
 
   const totalCalories = foods.reduce((sum, f) => sum + f.calories, 0);
+
+  if (mode === "saved") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Saved Meals</Text>
+          <TextInput
+            style={styles.input}
+            value={searchQuery}
+            onChangeText={searchSaved}
+            placeholder="Search saved meals..."
+            placeholderTextColor="#666"
+          />
+        </View>
+        {loadingSaved ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator color="#4ecdc4" size="large" />
+          </View>
+        ) : savedMeals.length === 0 ? (
+          <View style={styles.centerBox}>
+            <Text style={styles.emptyText}>
+              {searchQuery ? "No meals match your search." : "No saved meals yet."}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={savedMeals}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
+            renderItem={({ item }) => (
+              <View style={styles.savedCard}>
+                <TouchableOpacity style={styles.savedInfo} onPress={() => logSavedMeal(item)}>
+                  <Text style={styles.savedName}>{item.name}</Text>
+                  <Text style={styles.savedDetail}>
+                    {item.foods.length} item{item.foods.length !== 1 ? "s" : ""} · {item.total_calories} kcal
+                  </Text>
+                  <Text style={styles.savedFoods} numberOfLines={1}>
+                    {item.foods.map((f) => f.name).join(", ")}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeleteSaved(item)} style={styles.deleteBtn}>
+                  <Text style={styles.deleteText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        )}
+        <View style={styles.content}>
+          <TouchableOpacity onPress={() => setMode("camera")} style={styles.switchLink}>
+            <Text style={styles.switchText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (mode === "manual") {
     return (
@@ -280,6 +423,10 @@ export default function SnapScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity onPress={handleSaveForLater} style={styles.saveForLaterBtn}>
+          <Text style={styles.saveForLaterText}>Save for Later</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={resetState} style={styles.switchLink}>
           <Text style={styles.switchText}>Take another photo</Text>
         </TouchableOpacity>
@@ -299,11 +446,11 @@ export default function SnapScreen() {
           <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
             <Text style={styles.captureBtnText}>Take Photo</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setMode("manual")}
-            style={styles.switchLink}
-          >
+          <TouchableOpacity onPress={() => setMode("manual")} style={styles.switchLink}>
             <Text style={styles.switchText}>Type instead</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openSavedMeals} style={styles.switchLink}>
+            <Text style={styles.switchText}>Saved Meals</Text>
           </TouchableOpacity>
         </>
       )}
@@ -315,6 +462,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a" },
   content: { padding: 16, paddingBottom: 40 },
   cameraMode: { justifyContent: "center", alignItems: "center" },
+  centerBox: { flex: 1, justifyContent: "center", alignItems: "center" },
   title: { fontSize: 22, fontWeight: "bold", color: "#fff", marginBottom: 20 },
   label: { fontSize: 12, color: "#888", marginBottom: 6, marginTop: 12 },
   input: {
@@ -387,4 +535,28 @@ const styles = StyleSheet.create({
   captureBtnText: { color: "#000", fontSize: 18, fontWeight: "bold" },
   analyzingBox: { alignItems: "center", gap: 16 },
   analyzingText: { color: "#888", fontSize: 16 },
+  saveForLaterBtn: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#4ecdc4",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+  },
+  saveForLaterText: { color: "#4ecdc4", fontSize: 14 },
+  savedCard: {
+    backgroundColor: "#1e1e36",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  savedInfo: { flex: 1 },
+  savedName: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  savedDetail: { color: "#4ecdc4", fontSize: 13, marginTop: 2 },
+  savedFoods: { color: "#888", fontSize: 12, marginTop: 2 },
+  deleteBtn: { padding: 8 },
+  deleteText: { color: "#666", fontSize: 20 },
+  emptyText: { color: "#666", fontSize: 14, textAlign: "center" },
 });

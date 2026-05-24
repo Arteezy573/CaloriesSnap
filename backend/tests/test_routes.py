@@ -261,6 +261,69 @@ async def test_login_nonexistent_email(client):
 
 
 @pytest.mark.asyncio
+async def test_save_meal_for_later(client, auth_header):
+    resp = await client.post("/api/saved-meals", json={
+        "name": "Morning Oatmeal",
+        "foods": [
+            {"name": "Oatmeal", "quantity": "1 bowl", "calories": 300, "protein_g": 10.0, "carbs_g": 50.0, "fat_g": 6.0}
+        ],
+    }, headers=auth_header)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Morning Oatmeal"
+    assert data["total_calories"] == 300
+    assert len(data["foods"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_saved_meals(client, auth_header):
+    await client.post("/api/saved-meals", json={
+        "name": "Chicken Salad",
+        "foods": [
+            {"name": "Chicken", "quantity": "200g", "calories": 350, "protein_g": 42.0, "carbs_g": 0.0, "fat_g": 8.0}
+        ],
+    }, headers=auth_header)
+    resp = await client.get("/api/saved-meals", headers=auth_header)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert any(m["name"] == "Chicken Salad" for m in data)
+
+
+@pytest.mark.asyncio
+async def test_search_saved_meals(client, auth_header):
+    await client.post("/api/saved-meals", json={
+        "name": "Tuna Sandwich",
+        "foods": [
+            {"name": "Tuna Sandwich", "quantity": "1", "calories": 400, "protein_g": 30.0, "carbs_g": 35.0, "fat_g": 12.0}
+        ],
+    }, headers=auth_header)
+    resp = await client.get("/api/saved-meals?q=Tuna", headers=auth_header)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "Tuna Sandwich"
+
+    resp2 = await client.get("/api/saved-meals?q=Pizza", headers=auth_header)
+    assert resp2.json() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_saved_meal(client, auth_header):
+    resp = await client.post("/api/saved-meals", json={
+        "name": "To Delete",
+        "foods": [
+            {"name": "Food", "quantity": "1", "calories": 100, "protein_g": 5.0, "carbs_g": 10.0, "fat_g": 3.0}
+        ],
+    }, headers=auth_header)
+    saved_id = resp.json()["id"]
+    del_resp = await client.delete(f"/api/saved-meals/{saved_id}", headers=auth_header)
+    assert del_resp.status_code == 200
+    del_resp2 = await client.delete(f"/api/saved-meals/{saved_id}", headers=auth_header)
+    assert del_resp2.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_history(client, auth_header):
     await client.post("/api/meals", json={
         "source": "manual",
