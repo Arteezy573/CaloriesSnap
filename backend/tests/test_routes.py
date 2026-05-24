@@ -177,6 +177,7 @@ async def test_register_success(client):
     resp = await client.post("/api/register", json={
         "email": "newuser@test.com",
         "password": "securepass123",
+        "invite_code": "caloriessnap2026",
     })
     assert resp.status_code == 201
     data = resp.json()
@@ -189,10 +190,12 @@ async def test_register_duplicate_email(client):
     await client.post("/api/register", json={
         "email": "dupe@test.com",
         "password": "securepass123",
+        "invite_code": "caloriessnap2026",
     })
     resp = await client.post("/api/register", json={
         "email": "dupe@test.com",
         "password": "anotherpass",
+        "invite_code": "caloriessnap2026",
     })
     assert resp.status_code == 409
 
@@ -202,6 +205,7 @@ async def test_register_invalid_email(client):
     resp = await client.post("/api/register", json={
         "email": "notanemail",
         "password": "securepass123",
+        "invite_code": "caloriessnap2026",
     })
     assert resp.status_code == 422
 
@@ -211,8 +215,19 @@ async def test_register_short_password(client):
     resp = await client.post("/api/register", json={
         "email": "user@test.com",
         "password": "short",
+        "invite_code": "caloriessnap2026",
     })
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_wrong_invite_code(client):
+    resp = await client.post("/api/register", json={
+        "email": "newuser@test.com",
+        "password": "securepass123",
+        "invite_code": "wrongcode",
+    })
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -243,6 +258,17 @@ async def test_login_nonexistent_email(client):
         "password": "anypassword",
     })
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_analyze_rate_limit(client, auth_header, db_path):
+    from database import get_db, record_api_call
+    conn = get_db(db_path)
+    for _ in range(20):
+        record_api_call(conn, 1, "analyze")
+    conn.close()
+    resp = await client.post("/api/analyze_text", json={"food_description": "banana"}, headers=auth_header)
+    assert resp.status_code == 429
 
 
 @pytest.mark.asyncio

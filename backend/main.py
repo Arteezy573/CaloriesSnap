@@ -17,6 +17,7 @@ from PIL import Image as PILImage
 from analyzer import analyze_image, analyze_text
 from auth import get_current_user, hash_password, verify_password, create_token
 from database import (
+    count_api_calls_today,
     create_meal,
     create_user,
     delete_meal,
@@ -26,6 +27,7 @@ from database import (
     get_meals_by_date,
     get_user_by_email,
     init_db,
+    record_api_call,
     update_goals,
 )
 from models import (
@@ -46,6 +48,8 @@ anthropic_client = None
 
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "uploads"))
 MAX_IMAGE_DIMENSION = 1024
+INVITE_CODE = os.environ.get("INVITE_CODE", "caloriessnap2026")
+DAILY_ANALYZE_LIMIT = int(os.environ.get("DAILY_ANALYZE_LIMIT", "20"))
 
 
 def get_db_conn():
@@ -85,6 +89,8 @@ app.add_middleware(
 
 @app.post("/api/register", response_model=AuthResponse, status_code=201)
 def register(req: RegisterRequest, conn=Depends(get_db_conn)):
+    if req.invite_code != INVITE_CODE:
+        raise HTTPException(status_code=403, detail="Invalid invite code")
     password_hash = hash_password(req.password)
     user_id = create_user(conn, email=req.email, password_hash=password_hash)
     if user_id is None:
@@ -112,6 +118,11 @@ def set_goals(req: GoalsRequest, conn=Depends(get_db_conn), user=Depends(get_cur
     return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g)
 
 
+def check_rate_limit(conn, user_id: int):
+    if count_api_calls_today(conn, user_id) >= DAILY_ANALYZE_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Daily limit of {DAILY_ANALYZE_LIMIT} analyses reached")
+
+
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze_food(
     file: UploadFile | None = File(None),
@@ -119,6 +130,7 @@ async def analyze_food(
     conn=Depends(get_db_conn),
     user=Depends(get_current_user),
 ):
+    check_rate_limit(conn, user["id"])
     if file:
         raw_bytes = await file.read()
         resized = resize_image(raw_bytes)
@@ -128,16 +140,22 @@ async def analyze_food(
         media_type = file.content_type or "image/jpeg"
         result = analyze_image(anthropic_client, resized, media_type)
         result.image_path = f"uploads/{filename}"
+        record_api_call(conn, user["id"], "analyze")
         return result
     elif food_description:
-        return analyze_text(anthropic_client, food_description)
+        result = analyze_text(anthropic_client, food_description)
+        record_api_call(conn, user["id"], "analyze")
+        return result
     else:
         raise HTTPException(status_code=400, detail="Provide either an image file or food_description")
 
 
 @app.post("/api/analyze_text", response_model=AnalyzeResponse)
-def analyze_food_text(req: TextAnalyzeRequest, user=Depends(get_current_user)):
-    return analyze_text(anthropic_client, req.food_description)
+def analyze_food_text(req: TextAnalyzeRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    check_rate_limit(conn, user["id"])
+    result = analyze_text(anthropic_client, req.food_description)
+    record_api_call(conn, user["id"], "analyze_text")
+    return result
 
 
 @app.post("/api/meals", response_model=MealResponse)

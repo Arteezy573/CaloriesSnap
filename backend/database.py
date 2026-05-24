@@ -53,6 +53,14 @@ def init_db(conn: sqlite3.Connection) -> None:
             quantity TEXT NOT NULL,
             FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS api_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL,
+            called_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
 
 
@@ -149,6 +157,24 @@ def delete_meal(conn: sqlite3.Connection, user_id: int, meal_id: int) -> bool:
     cursor = conn.execute("DELETE FROM meals WHERE id = ? AND user_id = ?", (meal_id, user_id))
     conn.commit()
     return cursor.rowcount > 0
+
+
+def count_api_calls_today(conn: sqlite3.Connection, user_id: int) -> int:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    row = conn.execute(
+        "SELECT COUNT(*) as cnt FROM api_calls WHERE user_id = ? AND called_at >= ?",
+        (user_id, today),
+    ).fetchone()
+    return row["cnt"]
+
+
+def record_api_call(conn: sqlite3.Connection, user_id: int, endpoint: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO api_calls (user_id, endpoint, called_at) VALUES (?, ?, ?)",
+        (user_id, endpoint, now),
+    )
+    conn.commit()
 
 
 def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:

@@ -96,6 +96,7 @@ class SummaryResponse(BaseModel):
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=1)
     password: str = Field(min_length=6)
+    invite_code: str = Field(min_length=1)
 
     @field_validator("email")
     @classmethod

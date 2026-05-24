@@ -81,11 +81,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return resp.json();
 }
 
-export async function register(email: string, password: string): Promise<AuthResponse> {
+export async function register(email: string, password: string, inviteCode: string): Promise<AuthResponse> {
   const resp = await fetch(`${API_BASE_URL}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, invite_code: inviteCode }),
   });
   if (!resp.ok) {
     const text = await resp.text();

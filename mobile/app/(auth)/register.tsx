@@ -19,10 +19,11 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
-    if (!email.trim() || !password || !confirmPassword) {
+    if (!email.trim() || !password || !confirmPassword || !inviteCode.trim()) {
       Alert.alert("Error", "Please fill in all fields.");
       return;
     }
@@ -36,12 +37,14 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const result = await register(email.trim(), password);
+      const result = await register(email.trim(), password, inviteCode.trim());
       await setToken(result.token);
       notifyAuthChange(true);
     } catch (e: any) {
       const msg = e.message.includes("409")
         ? "An account with this email already exists."
+        : e.message.includes("403")
+        ? "Invalid invite code."
         : "Registration failed. Please try again.";
       Alert.alert("Error", msg);
     } finally {
@@ -85,6 +88,16 @@ export default function RegisterScreen() {
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Invite Code"
+          placeholderTextColor="#666"
+          value={inviteCode}
+          onChangeText={setInviteCode}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <TouchableOpacity
