@@ -177,6 +177,26 @@ def record_api_call(conn: sqlite3.Connection, user_id: int, endpoint: str) -> No
     conn.commit()
 
 
+def get_history(conn: sqlite3.Connection, user_id: int, start: str, end: str) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT m.date,
+            COALESCE(SUM(fi.calories), 0) as calories,
+            COALESCE(SUM(fi.protein_g), 0) as protein_g,
+            COALESCE(SUM(fi.carbs_g), 0) as carbs_g,
+            COALESCE(SUM(fi.fat_g), 0) as fat_g,
+            COUNT(DISTINCT m.id) as meals_count
+        FROM meals m
+        LEFT JOIN food_items fi ON fi.meal_id = m.id
+        WHERE m.user_id = ? AND m.date >= ? AND m.date <= ?
+        GROUP BY m.date
+        ORDER BY m.date
+        """,
+        (user_id, start, end),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:
     goals = get_goals(conn, user_id)
     row = conn.execute(

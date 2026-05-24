@@ -93,6 +93,15 @@ class SummaryResponse(BaseModel):
     meals_count: int
 
 
+class HistoryEntry(BaseModel):
+    date: str
+    calories: int
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    meals_count: int
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=1)
     password: str = Field(min_length=6)

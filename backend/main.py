@@ -24,6 +24,7 @@ from database import (
     get_daily_summary,
     get_db,
     get_goals,
+    get_history,
     get_meals_by_date,
     get_user_by_email,
     init_db,
@@ -35,6 +36,7 @@ from models import (
     AuthResponse,
     GoalsRequest,
     GoalsResponse,
+    HistoryEntry,
     LoginRequest,
     MealRequest,
     MealResponse,
@@ -193,3 +195,8 @@ def remove_meal(meal_id: int, conn=Depends(get_db_conn), user=Depends(get_curren
 @app.get("/api/summary", response_model=SummaryResponse)
 def read_summary(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     return get_daily_summary(conn, user["id"], date)
+
+
+@app.get("/api/history", response_model=list[HistoryEntry])
+def read_history(start: str, end: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_history(conn, user["id"], start, end)

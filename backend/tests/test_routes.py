@@ -261,6 +261,31 @@ async def test_login_nonexistent_email(client):
 
 
 @pytest.mark.asyncio
+async def test_history(client, auth_header):
+    await client.post("/api/meals", json={
+        "source": "manual",
+        "foods": [
+            {"name": "Apple", "quantity": "1", "calories": 95, "protein_g": 0.5, "carbs_g": 25.0, "fat_g": 0.3}
+        ],
+    }, headers=auth_header)
+    from datetime import date
+    today = date.today().isoformat()
+    resp = await client.get(f"/api/history?start={today}&end={today}", headers=auth_header)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["calories"] == 95
+    assert data[0]["date"] == today
+
+
+@pytest.mark.asyncio
+async def test_history_empty_range(client, auth_header):
+    resp = await client.get("/api/history?start=2020-01-01&end=2020-01-07", headers=auth_header)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
 async def test_analyze_rate_limit(client, auth_header, db_path):
     from database import get_db, record_api_call
     conn = get_db(db_path)

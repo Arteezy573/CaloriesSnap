@@ -180,3 +180,16 @@ export async function updateGoals(goals: {
 export async function getDailySummary(date: string): Promise<DailySummary> {
   return request<DailySummary>(`/api/summary?date=${date}`);
 }
+
+export interface HistoryEntry {
+  date: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  meals_count: number;
+}
+
+export async function getHistory(start: string, end: string): Promise<HistoryEntry[]> {
+  return request<HistoryEntry[]>(`/api/history?start=${start}&end=${end}`);
+}
