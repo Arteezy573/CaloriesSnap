@@ -97,15 +97,15 @@ export default function SnapScreen() {
           { text: "Cancel", style: "cancel" },
           {
             text: "Save",
-            onPress: (name) => doSaveForLater(name || mealName),
+            onPress: (name) => doSaveForLater(name || mealName, foods),
           },
         ], "plain-text", mealName)
-      : doSaveForLater(mealName);
+      : doSaveForLater(mealName, foods);
   }
 
-  async function doSaveForLater(name: string) {
+  async function doSaveForLater(name: string, items: FoodItem[]) {
     try {
-      await saveMealForLater(name, foods);
+      await saveMealForLater(name, items);
       Alert.alert("Saved!", "Meal saved for later.");
     } catch (e: any) {
       Alert.alert("Error", "Could not save: " + e.message);
@@ -376,6 +376,23 @@ export default function SnapScreen() {
             <Text style={styles.saveBtnText}>{saving ? "Saving..." : "Save"}</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity onPress={() => {
+          if (!foodName.trim()) {
+            Alert.alert("Missing", "Enter a food name first.");
+            return;
+          }
+          doSaveForLater(foodName, [{
+            name: foodName,
+            quantity: "1 serving",
+            calories: parseInt(manCalories) || 0,
+            protein_g: parseFloat(manProtein) || 0,
+            carbs_g: parseFloat(manCarbs) || 0,
+            fat_g: parseFloat(manFat) || 0,
+          }]);
+        }} style={styles.saveForLaterBtn}>
+          <Text style={styles.saveForLaterText}>Save for Later</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity onPress={() => setMode("camera")} style={styles.switchLink}>
           <Text style={styles.switchText}>Use camera instead</Text>
