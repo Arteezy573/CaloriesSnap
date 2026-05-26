@@ -151,9 +151,10 @@ export async function createMeal(meal: {
   foods: FoodItem[];
   notes?: string;
 }): Promise<Meal> {
+  const date = new Date().toISOString().split("T")[0];
   return request<Meal>("/api/meals", {
     method: "POST",
-    body: JSON.stringify(meal),
+    body: JSON.stringify({ ...meal, date }),
   });
 }
 

@@ -48,6 +48,7 @@ class MealRequest(BaseModel):
     image_path: Optional[str] = None
     foods: list[FoodItem]
     notes: Optional[str] = None
+    date: Optional[str] = None
 
     @field_validator("source")
     @classmethod

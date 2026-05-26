@@ -167,17 +167,18 @@ def analyze_food_text(req: TextAnalyzeRequest, conn=Depends(get_db_conn), user=D
 
 @app.post("/api/meals", response_model=MealResponse)
 def create_new_meal(req: MealRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    meal_date = req.date or date.today().isoformat()
     foods = [f.model_dump() for f in req.foods]
     meal_id = create_meal(
         conn,
         user_id=user["id"],
-        date=date.today().isoformat(),
+        date=meal_date,
         source=req.source,
         foods=foods,
         image_path=req.image_path,
         notes=req.notes,
     )
-    meals = get_meals_by_date(conn, user["id"], date.today().isoformat())
+    meals = get_meals_by_date(conn, user["id"], meal_date)
     for m in meals:
         if m["id"] == meal_id:
             return m
