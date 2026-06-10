@@ -148,20 +148,22 @@ async def test_daily_summary(client, auth_header):
     assert data["remaining"]["calories"] == 2000 - 350
 
 
-MOCK_ANALYZE_RESPONSE = json.dumps({
-    "foods": [
-        {"name": "Banana", "quantity": "1 medium", "calories": 105, "protein_g": 1.3, "carbs_g": 27.0, "fat_g": 0.4}
-    ],
-    "confidence": "high",
-})
+def _mock_analysis():
+    from analyzer import FoodAnalysis
+    from models import FoodItem
+
+    return FoodAnalysis(
+        foods=[
+            FoodItem(name="Banana", quantity="1 medium", calories=105, protein_g=1.3, carbs_g=27.0, fat_g=0.4)
+        ],
+        confidence="high",
+    )
 
 
 @pytest.mark.asyncio
 async def test_analyze_text(client, auth_header):
     mock_client = MagicMock()
-    message = MagicMock()
-    message.content = [MagicMock(text=MOCK_ANALYZE_RESPONSE)]
-    mock_client.messages.create.return_value = message
+    mock_client.messages.parse.return_value = MagicMock(parsed_output=_mock_analysis())
 
     with patch("main.anthropic_client", mock_client):
         resp = await client.post("/api/analyze_text", json={"food_description": "1 medium banana"}, headers=auth_header)

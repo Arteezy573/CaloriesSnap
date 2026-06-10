@@ -1,42 +1,42 @@
 import base64
-import json
+from typing import Literal
 
 from anthropic import Anthropic
+from pydantic import BaseModel
 
-from models import AnalyzeResponse
+from models import AnalyzeResponse, FoodItem
+
+MODEL = "claude-opus-4-8"
+MAX_TOKENS = 16000
 
 SYSTEM_PROMPT = """You are a food nutrition analyzer. When given a food image or text description, identify all foods and estimate their nutritional content.
 
-Respond ONLY with a JSON object in this exact format, no other text:
-{
-  "foods": [
-    {
-      "name": "Food Name",
-      "quantity": "estimated portion size",
-      "calories": 123,
-      "protein_g": 12.0,
-      "carbs_g": 15.0,
-      "fat_g": 5.0
-    }
-  ],
-  "confidence": "high"
-}
-
 Rules:
 - List every distinct food visible in the image or described in the text
-- Estimate portion sizes based on visual cues or the description
+- For composite or mixed dishes (stir-fries, braises, curries, fried rice, noodle soups, dumplings, casseroles), identify the dish by name first, then list each major component as its own item — e.g. "Mapo Tofu" becomes tofu, ground pork, and chili oil sauce
+- Always include cooking oil, butter, or sauces as a separate item when the cooking method implies them (stir-fried, deep-fried, braised, dressed) — restaurant dishes typically use 1-2 tablespoons of oil
+- Be cuisine-aware: recognize dishes from Chinese, Japanese, Korean, Southeast Asian, Indian, Mexican, and Western cuisines by name, and use typical recipes for that cuisine to infer hidden ingredients (sugar in red-braised dishes, coconut milk in curries)
+- Estimate portion sizes from visual cues (plate size, utensils, container) or the description
 - Provide realistic calorie and macro estimates per item
-- confidence must be "high", "medium", or "low"
-- If no food is detected, return empty foods array with "low" confidence
-- All numbers must be non-negative
-- calories must be an integer, macros can be floats with one decimal"""
+- confidence is "high" when foods and portions are clearly identifiable, "medium" when the dish is recognizable but portions or ingredients are uncertain, "low" when guessing
+- If no food is detected, return an empty foods array with "low" confidence"""
+
+
+class FoodAnalysis(BaseModel):
+    foods: list[FoodItem]
+    confidence: Literal["high", "medium", "low"]
+
+
+def _to_response(analysis: FoodAnalysis) -> AnalyzeResponse:
+    return AnalyzeResponse(foods=analysis.foods, confidence=analysis.confidence)
 
 
 def analyze_image(client: Anthropic, image_bytes: bytes, media_type: str) -> AnalyzeResponse:
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
+    response = client.messages.parse(
+        model=MODEL,
+        max_tokens=MAX_TOKENS,
+        thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT,
         messages=[
             {
@@ -57,16 +57,16 @@ def analyze_image(client: Anthropic, image_bytes: bytes, media_type: str) -> Ana
                 ],
             }
         ],
+        output_format=FoodAnalysis,
     )
-    raw = message.content[0].text
-    data = json.loads(raw)
-    return AnalyzeResponse(**data)
+    return _to_response(response.parsed_output)
 
 
 def analyze_text(client: Anthropic, food_description: str) -> AnalyzeResponse:
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
+    response = client.messages.parse(
+        model=MODEL,
+        max_tokens=MAX_TOKENS,
+        thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT,
         messages=[
             {
@@ -74,7 +74,6 @@ def analyze_text(client: Anthropic, food_description: str) -> AnalyzeResponse:
                 "content": f"Estimate the calories and macronutrients for: {food_description}",
             }
         ],
+        output_format=FoodAnalysis,
     )
-    raw = message.content[0].text
-    data = json.loads(raw)
-    return AnalyzeResponse(**data)
+    return _to_response(response.parsed_output)
