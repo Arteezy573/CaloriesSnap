@@ -116,10 +116,11 @@ All endpoints except register and login require a `Bearer` token in the `Authori
 |--------|----------|------|-------------|
 | POST | `/api/register` | No | Create account (requires invite code) |
 | POST | `/api/login` | No | Log in, get JWT token |
-| POST | `/api/analyze` | Yes | Analyze a food photo (rate limited) |
+| POST | `/api/analyze` | Yes | Analyze a food photo, optional `food_description` hint (rate limited) |
 | POST | `/api/analyze_text` | Yes | Estimate nutrition from text (rate limited) |
 | POST | `/api/meals` | Yes | Save a meal |
 | GET | `/api/meals?date=YYYY-MM-DD` | Yes | Get meals for a date |
+| PUT | `/api/meals/{id}` | Yes | Edit a meal's foods/notes |
 | DELETE | `/api/meals/{id}` | Yes | Delete a meal |
 | GET | `/api/goals` | Yes | Get daily goals |
 | PUT | `/api/goals` | Yes | Update daily goals |
@@ -159,7 +160,7 @@ CaloriesSnap/
 │   ├── startup.sh          # Gunicorn startup for Azure
 │   ├── requirements.txt
 │   ├── .env                # Local env vars (not committed)
-│   └── tests/              # Backend tests (53 tests)
+│   └── tests/              # Backend tests (72 tests)
 ├── mobile/
 │   ├── app/
 │   │   ├── (auth)/
