@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import Svg, { Polyline, Line, Circle, Text as SvgText } from "react-native-svg";
 import { HistoryEntry, getHistory, getGoals, Goals } from "../../services/api";
+import { localDateString } from "../../services/dates";
 
 const RANGES = [
   { label: "7D", days: 7 },
@@ -19,14 +20,10 @@ const RANGES = [
   { label: "30D", days: 30 },
 ];
 
-function toISO(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
-
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return toISO(d);
+  return localDateString(d);
 }
 
 function formatShortDate(dateStr: string): string {
@@ -137,7 +134,7 @@ export default function TrendsScreen() {
     try {
       const range = RANGES[rangeIdx];
       const start = daysAgo(range.days - 1);
-      const end = toISO(new Date());
+      const end = localDateString();
       const [h, g] = await Promise.all([getHistory(start, end), getGoals()]);
       setHistory(h);
       setGoals(g);

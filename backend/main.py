@@ -65,6 +65,8 @@ def get_db_conn():
 
 def resize_image(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION) -> bytes:
     img = PILImage.open(BytesIO(image_bytes))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
     if max(img.size) > max_dim:
         img.thumbnail((max_dim, max_dim))
     buf = BytesIO()
@@ -144,8 +146,8 @@ async def analyze_food(
         filename = f"{date.today().isoformat()}_{uuid.uuid4().hex[:8]}.jpg"
         save_path = UPLOAD_DIR / filename
         save_path.write_bytes(resized)
-        media_type = file.content_type or "image/jpeg"
-        result = analyze_image(anthropic_client, resized, media_type, hint=food_description)
+        # resize_image always re-encodes to JPEG, regardless of the upload type
+        result = analyze_image(anthropic_client, resized, "image/jpeg", hint=food_description)
         result.image_path = f"uploads/{filename}"
         record_api_call(conn, user["id"], "analyze")
         return result

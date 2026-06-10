@@ -13,10 +13,7 @@ import { useFocusEffect } from "expo-router";
 import MacroBar from "../../components/MacroBar";
 import MealCard from "../../components/MealCard";
 import { DailySummary, Meal, deleteMeal, getDailySummary, getMeals } from "../../services/api";
-
-function toISO(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
+import { localDateString as toISO } from "../../services/dates";
 
 function todayISO(): string {
   return toISO(new Date());

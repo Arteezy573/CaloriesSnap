@@ -32,6 +32,7 @@ export default function SnapScreen() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("camera");
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [serverImagePath, setServerImagePath] = useState<string | null>(null);
   const [foods, setFoods] = useState<FoodItem[]>([]);
   const [confidence, setConfidence] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -68,6 +69,7 @@ export default function SnapScreen() {
         const analysis = await analyzePhoto(uri);
         setFoods(analysis.foods);
         setConfidence(analysis.confidence);
+        setServerImagePath(analysis.image_path ?? null);
         setMode("results");
       } catch (e: any) {
         Alert.alert("Analysis failed", e.message + "\n\nYou can try again or enter manually.");
@@ -84,6 +86,7 @@ export default function SnapScreen() {
       const analysis = await analyzePhoto(imageUri, hint.trim() || undefined);
       setFoods(analysis.foods);
       setConfidence(analysis.confidence);
+      setServerImagePath(analysis.image_path ?? null);
     } catch (e: any) {
       Alert.alert("Re-analysis failed", e.message);
     } finally {
@@ -94,7 +97,7 @@ export default function SnapScreen() {
   async function handleSaveMeal() {
     setSaving(true);
     try {
-      await createMeal({ source: "photo", foods, image_path: imageUri ?? undefined });
+      await createMeal({ source: "photo", foods, image_path: serverImagePath ?? undefined });
       Alert.alert("Saved!", "Meal added to your log.");
       resetState();
       router.navigate("/");
@@ -234,6 +237,7 @@ export default function SnapScreen() {
   function resetState() {
     setMode("camera");
     setImageUri(null);
+    setServerImagePath(null);
     setFoods([]);
     setConfidence("");
     setHint("");

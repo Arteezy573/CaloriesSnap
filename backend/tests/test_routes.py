@@ -203,6 +203,32 @@ async def test_analyze_photo_with_hint(client, auth_header):
     assert any("mapo tofu with rice" in t for t in text_blocks)
 
 
+def _tiny_rgba_png() -> bytes:
+    from io import BytesIO
+
+    from PIL import Image as PILImage
+
+    buf = BytesIO()
+    PILImage.new("RGBA", (32, 32), (255, 0, 0, 128)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_analyze_photo_png_upload_sends_jpeg_media_type(client, auth_header):
+    mock_client = MagicMock()
+    mock_client.messages.parse.return_value = MagicMock(parsed_output=_mock_analysis())
+
+    with patch("main.anthropic_client", mock_client):
+        resp = await client.post(
+            "/api/analyze",
+            files={"file": ("screenshot.png", _tiny_rgba_png(), "image/png")},
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    image_block = mock_client.messages.parse.call_args.kwargs["messages"][0]["content"][0]
+    assert image_block["source"]["media_type"] == "image/jpeg"
+
+
 @pytest.mark.asyncio
 async def test_register_success(client):
     resp = await client.post("/api/register", json={

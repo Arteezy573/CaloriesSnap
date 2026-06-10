@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getToken, clearToken } from "./auth";
+import { localDateString } from "./dates";
 
 export interface FoodItem {
   id?: number;
@@ -15,6 +16,7 @@ export interface AnalyzeResponse {
   foods: FoodItem[];
   confidence: string;
   total_calories: number;
+  image_path?: string | null;
 }
 
 export interface Meal {
@@ -154,7 +156,7 @@ export async function createMeal(meal: {
   foods: FoodItem[];
   notes?: string;
 }): Promise<Meal> {
-  const date = new Date().toISOString().split("T")[0];
+  const date = localDateString();
   return request<Meal>("/api/meals", {
     method: "POST",
     body: JSON.stringify({ ...meal, date }),
