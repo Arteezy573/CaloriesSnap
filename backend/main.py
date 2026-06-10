@@ -9,6 +9,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
+import anyio.to_thread
 from anthropic import Anthropic
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,7 +55,7 @@ _db_conn = None
 anthropic_client = None
 
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "uploads"))
-MAX_IMAGE_DIMENSION = 1024
+MAX_IMAGE_DIMENSION = 1568
 INVITE_CODE = os.environ.get("INVITE_CODE", "caloriessnap2026")
 DAILY_ANALYZE_LIMIT = int(os.environ.get("DAILY_ANALYZE_LIMIT", "20"))
 
@@ -146,8 +147,12 @@ async def analyze_food(
         filename = f"{date.today().isoformat()}_{uuid.uuid4().hex[:8]}.jpg"
         save_path = UPLOAD_DIR / filename
         save_path.write_bytes(resized)
-        # resize_image always re-encodes to JPEG, regardless of the upload type
-        result = analyze_image(anthropic_client, resized, "image/jpeg", hint=food_description)
+        # resize_image always re-encodes to JPEG, regardless of the upload type.
+        # The Anthropic client is synchronous — run it in a thread so the
+        # multi-second AI call doesn't block the event loop.
+        result = await anyio.to_thread.run_sync(
+            lambda: analyze_image(anthropic_client, resized, "image/jpeg", hint=food_description)
+        )
         result.image_path = f"uploads/{filename}"
         record_api_call(conn, user["id"], "analyze")
         return result

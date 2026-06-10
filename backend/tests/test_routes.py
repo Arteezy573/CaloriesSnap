@@ -229,6 +229,25 @@ async def test_analyze_photo_png_upload_sends_jpeg_media_type(client, auth_heade
     assert image_block["source"]["media_type"] == "image/jpeg"
 
 
+def test_resize_image_keeps_detail_up_to_1568():
+    from io import BytesIO
+
+    from PIL import Image as PILImage
+
+    from main import resize_image
+
+    def make_jpeg(w, h):
+        buf = BytesIO()
+        PILImage.new("RGB", (w, h), "green").save(buf, format="JPEG")
+        return buf.getvalue()
+
+    untouched = PILImage.open(BytesIO(resize_image(make_jpeg(1400, 1000))))
+    assert untouched.size == (1400, 1000)
+
+    capped = PILImage.open(BytesIO(resize_image(make_jpeg(3000, 2000))))
+    assert max(capped.size) == 1568
+
+
 @pytest.mark.asyncio
 async def test_register_success(client):
     resp = await client.post("/api/register", json={
