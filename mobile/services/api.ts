@@ -107,7 +107,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return resp.json();
 }
 
-export async function analyzePhoto(imageUri: string): Promise<AnalyzeResponse> {
+export async function analyzePhoto(imageUri: string, hint?: string): Promise<AnalyzeResponse> {
   const formData = new FormData();
   const filename = imageUri.split("/").pop() || "photo.jpg";
   formData.append("file", {
@@ -115,6 +115,9 @@ export async function analyzePhoto(imageUri: string): Promise<AnalyzeResponse> {
     name: filename,
     type: "image/jpeg",
   } as any);
+  if (hint) {
+    formData.append("food_description", hint);
+  }
 
   const headers = await authHeaders();
   const resp = await fetch(`${API_BASE_URL}/api/analyze`, {

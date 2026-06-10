@@ -174,6 +174,35 @@ async def test_analyze_text(client, auth_header):
     assert data["total_calories"] == 105
 
 
+def _tiny_jpeg() -> bytes:
+    from io import BytesIO
+
+    from PIL import Image as PILImage
+
+    buf = BytesIO()
+    PILImage.new("RGB", (32, 32), "red").save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_analyze_photo_with_hint(client, auth_header):
+    mock_client = MagicMock()
+    mock_client.messages.parse.return_value = MagicMock(parsed_output=_mock_analysis())
+
+    with patch("main.anthropic_client", mock_client):
+        resp = await client.post(
+            "/api/analyze",
+            files={"file": ("meal.jpg", _tiny_jpeg(), "image/jpeg")},
+            data={"food_description": "mapo tofu with rice"},
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    assert resp.json()["image_path"].startswith("uploads/")
+    user_content = mock_client.messages.parse.call_args.kwargs["messages"][0]["content"]
+    text_blocks = [b["text"] for b in user_content if b.get("type") == "text"]
+    assert any("mapo tofu with rice" in t for t in text_blocks)
+
+
 @pytest.mark.asyncio
 async def test_register_success(client):
     resp = await client.post("/api/register", json={

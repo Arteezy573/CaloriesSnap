@@ -10,7 +10,7 @@ from io import BytesIO
 from pathlib import Path
 
 from anthropic import Anthropic
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image as PILImage
 
@@ -133,7 +133,7 @@ def check_rate_limit(conn, user_id: int):
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze_food(
     file: UploadFile | None = File(None),
-    food_description: str | None = None,
+    food_description: str | None = Form(None),
     conn=Depends(get_db_conn),
     user=Depends(get_current_user),
 ):
@@ -145,7 +145,7 @@ async def analyze_food(
         save_path = UPLOAD_DIR / filename
         save_path.write_bytes(resized)
         media_type = file.content_type or "image/jpeg"
-        result = analyze_image(anthropic_client, resized, media_type)
+        result = analyze_image(anthropic_client, resized, media_type, hint=food_description)
         result.image_path = f"uploads/{filename}"
         record_api_call(conn, user["id"], "analyze")
         return result

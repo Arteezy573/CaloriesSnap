@@ -50,6 +50,22 @@ def test_analyze_image_uses_current_model_and_structured_output():
     assert any(block.get("type") == "image" for block in user_content)
 
 
+def test_analyze_image_includes_hint():
+    client = _mock_client(MOCK_ANALYSIS)
+    analyze_image(client, b"fake-image-bytes", "image/jpeg", hint="mapo tofu with rice")
+    user_content = client.messages.parse.call_args.kwargs["messages"][0]["content"]
+    text_blocks = [b["text"] for b in user_content if b.get("type") == "text"]
+    assert any("mapo tofu with rice" in t for t in text_blocks)
+
+
+def test_analyze_image_without_hint_has_no_hint_text():
+    client = _mock_client(MOCK_ANALYSIS)
+    analyze_image(client, b"fake-image-bytes", "image/jpeg")
+    user_content = client.messages.parse.call_args.kwargs["messages"][0]["content"]
+    text_blocks = [b["text"] for b in user_content if b.get("type") == "text"]
+    assert not any("hint" in t.lower() for t in text_blocks)
+
+
 def test_analyze_image_empty_result():
     client = _mock_client(MOCK_EMPTY_ANALYSIS)
     result = analyze_image(client, b"fake-image-bytes", "image/jpeg")

@@ -31,8 +31,16 @@ def _to_response(analysis: FoodAnalysis) -> AnalyzeResponse:
     return AnalyzeResponse(foods=analysis.foods, confidence=analysis.confidence)
 
 
-def analyze_image(client: Anthropic, image_bytes: bytes, media_type: str) -> AnalyzeResponse:
+def analyze_image(
+    client: Anthropic, image_bytes: bytes, media_type: str, hint: str | None = None
+) -> AnalyzeResponse:
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    instruction = "Identify all foods in this image and estimate their calories and macronutrients."
+    if hint:
+        instruction += (
+            f'\n\nUser hint about this meal: "{hint}". '
+            "Use it to identify the dish and its typical ingredients."
+        )
     response = client.messages.parse(
         model=MODEL,
         max_tokens=MAX_TOKENS,
@@ -52,7 +60,7 @@ def analyze_image(client: Anthropic, image_bytes: bytes, media_type: str) -> Ana
                     },
                     {
                         "type": "text",
-                        "text": "Identify all foods in this image and estimate their calories and macronutrients.",
+                        "text": instruction,
                     },
                 ],
             }

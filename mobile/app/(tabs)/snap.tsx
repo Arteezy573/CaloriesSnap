@@ -35,6 +35,7 @@ export default function SnapScreen() {
   const [foods, setFoods] = useState<FoodItem[]>([]);
   const [confidence, setConfidence] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
   const [editable, setEditable] = useState(false);
 
@@ -76,6 +77,20 @@ export default function SnapScreen() {
     }
   }
 
+  async function handleReanalyze() {
+    if (!imageUri) return;
+    setAnalyzing(true);
+    try {
+      const analysis = await analyzePhoto(imageUri, hint.trim() || undefined);
+      setFoods(analysis.foods);
+      setConfidence(analysis.confidence);
+    } catch (e: any) {
+      Alert.alert("Re-analysis failed", e.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   async function handleSaveMeal() {
     setSaving(true);
     try {
@@ -97,7 +112,7 @@ export default function SnapScreen() {
           { text: "Cancel", style: "cancel" },
           {
             text: "Save",
-            onPress: (name) => doSaveForLater(name || mealName, foods),
+            onPress: (name?: string) => doSaveForLater(name || mealName, foods),
           },
         ], "plain-text", mealName)
       : doSaveForLater(mealName, foods);
@@ -221,6 +236,7 @@ export default function SnapScreen() {
     setImageUri(null);
     setFoods([]);
     setConfidence("");
+    setHint("");
     setEditable(false);
     setFoodName("");
     setManCalories("");
@@ -423,6 +439,24 @@ export default function SnapScreen() {
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{totalCalories} kcal</Text>
         </View>
+
+        <Text style={styles.label}>NOT QUITE RIGHT? GIVE A HINT</Text>
+        <TextInput
+          style={styles.input}
+          value={hint}
+          onChangeText={setHint}
+          placeholder="e.g. mapo tofu with rice, homemade less oil..."
+          placeholderTextColor="#666"
+        />
+        <TouchableOpacity
+          style={[styles.estimateBtn, { flex: 0, marginTop: 8 }]}
+          onPress={handleReanalyze}
+          disabled={analyzing}
+        >
+          <Text style={styles.estimateBtnText}>
+            {analyzing ? "Re-analyzing..." : "Re-analyze with hint"}
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.actions}>
           <TouchableOpacity
