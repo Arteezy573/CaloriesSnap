@@ -28,12 +28,14 @@ from database import (
     get_db,
     get_goals,
     get_history,
+    get_meal,
     get_meals_by_date,
     get_saved_meals,
     get_user_by_email,
     init_db,
     record_api_call,
     update_goals,
+    update_meal,
 )
 from models import (
     AnalyzeResponse,
@@ -44,6 +46,7 @@ from models import (
     LoginRequest,
     MealRequest,
     MealResponse,
+    MealUpdateRequest,
     RegisterRequest,
     SaveMealRequest,
     SavedMealResponse,
@@ -195,6 +198,14 @@ def create_new_meal(req: MealRequest, conn=Depends(get_db_conn), user=Depends(ge
 @app.get("/api/meals", response_model=list[MealResponse])
 def read_meals(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     return get_meals_by_date(conn, user["id"], date)
+
+
+@app.put("/api/meals/{meal_id}", response_model=MealResponse)
+def edit_meal(meal_id: int, req: MealUpdateRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    foods = [f.model_dump() for f in req.foods]
+    if not update_meal(conn, user["id"], meal_id, foods, req.notes):
+        raise HTTPException(status_code=404, detail="Meal not found")
+    return get_meal(conn, user["id"], meal_id)
 
 
 @app.delete("/api/meals/{meal_id}")

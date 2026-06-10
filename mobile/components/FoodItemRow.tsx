@@ -15,23 +15,64 @@ export default function FoodItemRow({ item, index, onUpdate, editable }: Props) 
     onUpdate(index, { ...item, [field]: parsed });
   }
 
+  if (!editable) {
+    return (
+      <View style={styles.row}>
+        <View style={styles.topRow}>
+          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.calories}>{item.calories} kcal</Text>
+        </View>
+        <Text style={styles.detail}>
+          {item.quantity}  •  P: {item.protein_g}g  C: {item.carbs_g}g  F: {item.fat_g}g
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.row}>
       <View style={styles.topRow}>
-        {editable ? (
-          <TextInput
-            style={styles.nameInput}
-            value={item.name}
-            onChangeText={(v) => update("name", v)}
-          />
-        ) : (
-          <Text style={styles.name}>{item.name}</Text>
-        )}
-        <Text style={styles.calories}>{item.calories} kcal</Text>
+        <TextInput
+          style={styles.nameInput}
+          value={item.name}
+          onChangeText={(v) => update("name", v)}
+        />
+        <TextInput
+          style={styles.numInput}
+          value={String(item.calories)}
+          onChangeText={(v) => update("calories", v)}
+          keyboardType="numeric"
+        />
+        <Text style={styles.unit}>kcal</Text>
       </View>
-      <Text style={styles.detail}>
-        {item.quantity}  •  P: {item.protein_g}g  C: {item.carbs_g}g  F: {item.fat_g}g
-      </Text>
+      <View style={styles.editDetailRow}>
+        <TextInput
+          style={[styles.nameInput, styles.qtyInput]}
+          value={item.quantity}
+          onChangeText={(v) => update("quantity", v)}
+        />
+        <Text style={styles.unit}>P</Text>
+        <TextInput
+          style={styles.numInput}
+          value={String(item.protein_g)}
+          onChangeText={(v) => update("protein_g", v)}
+          keyboardType="numeric"
+        />
+        <Text style={styles.unit}>C</Text>
+        <TextInput
+          style={styles.numInput}
+          value={String(item.carbs_g)}
+          onChangeText={(v) => update("carbs_g", v)}
+          keyboardType="numeric"
+        />
+        <Text style={styles.unit}>F</Text>
+        <TextInput
+          style={styles.numInput}
+          value={String(item.fat_g)}
+          onChangeText={(v) => update("fat_g", v)}
+          keyboardType="numeric"
+        />
+      </View>
     </View>
   );
 }
@@ -43,4 +84,17 @@ const styles = StyleSheet.create({
   nameInput: { color: "#fff", fontSize: 14, flex: 1, borderBottomWidth: 1, borderBottomColor: "#4ecdc4", paddingBottom: 2 },
   calories: { color: "#fff", fontSize: 14, marginLeft: 8 },
   detail: { color: "#888", fontSize: 12, marginTop: 4 },
+  editDetailRow: { flexDirection: "row", alignItems: "center", marginTop: 8, gap: 4 },
+  qtyInput: { fontSize: 12, color: "#888" },
+  numInput: {
+    color: "#fff",
+    fontSize: 13,
+    minWidth: 44,
+    textAlign: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#4ecdc4",
+    paddingBottom: 2,
+    marginLeft: 6,
+  },
+  unit: { color: "#888", fontSize: 12, marginLeft: 6 },
 });

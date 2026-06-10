@@ -131,6 +131,44 @@ async def test_delete_meal(client, auth_header):
 
 
 @pytest.mark.asyncio
+async def test_update_meal_route(client, auth_header):
+    create_resp = await client.post("/api/meals", json={
+        "source": "manual",
+        "foods": [
+            {"name": "Chicken", "quantity": "200g", "calories": 350, "protein_g": 42.0, "carbs_g": 0.0, "fat_g": 8.5}
+        ],
+    }, headers=auth_header)
+    meal_id = create_resp.json()["id"]
+
+    resp = await client.put(f"/api/meals/{meal_id}", json={
+        "foods": [
+            {"name": "Chicken", "quantity": "150g", "calories": 260, "protein_g": 31.0, "carbs_g": 0.0, "fat_g": 6.5},
+            {"name": "Rice", "quantity": "1 bowl", "calories": 260, "protein_g": 5.0, "carbs_g": 57.0, "fat_g": 0.5},
+        ],
+    }, headers=auth_header)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["foods"]) == 2
+    assert data["total_calories"] == 520
+
+
+@pytest.mark.asyncio
+async def test_update_meal_not_found(client, auth_header):
+    resp = await client.put("/api/meals/9999", json={
+        "foods": [
+            {"name": "Rice", "quantity": "1 bowl", "calories": 260, "protein_g": 5.0, "carbs_g": 57.0, "fat_g": 0.5}
+        ],
+    }, headers=auth_header)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_meal_rejects_empty_foods(client, auth_header):
+    resp = await client.put("/api/meals/1", json={"foods": []}, headers=auth_header)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_daily_summary(client, auth_header):
     await client.post("/api/meals", json={
         "source": "manual",

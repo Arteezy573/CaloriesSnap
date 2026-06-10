@@ -173,6 +173,46 @@ def get_meals_by_date(conn: sqlite3.Connection, user_id: int, date: str) -> list
     return result
 
 
+def get_meal(conn: sqlite3.Connection, user_id: int, meal_id: int) -> dict | None:
+    meal = conn.execute(
+        "SELECT * FROM meals WHERE id = ? AND user_id = ?", (meal_id, user_id)
+    ).fetchone()
+    if meal is None:
+        return None
+    meal_dict = dict(meal)
+    foods = conn.execute(
+        "SELECT * FROM food_items WHERE meal_id = ?", (meal_id,)
+    ).fetchall()
+    food_list = [dict(f) for f in foods]
+    meal_dict["foods"] = food_list
+    meal_dict["total_calories"] = sum(f["calories"] for f in food_list)
+    return meal_dict
+
+
+def update_meal(
+    conn: sqlite3.Connection,
+    user_id: int,
+    meal_id: int,
+    foods: list[dict],
+    notes: Optional[str] = None,
+) -> bool:
+    row = conn.execute(
+        "SELECT id FROM meals WHERE id = ? AND user_id = ?", (meal_id, user_id)
+    ).fetchone()
+    if row is None:
+        return False
+    conn.execute("DELETE FROM food_items WHERE meal_id = ?", (meal_id,))
+    for food in foods:
+        conn.execute(
+            "INSERT INTO food_items (meal_id, name, quantity, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (meal_id, food["name"], food["quantity"], food["calories"], food["protein_g"], food["carbs_g"], food["fat_g"]),
+        )
+    if notes is not None:
+        conn.execute("UPDATE meals SET notes = ? WHERE id = ?", (notes, meal_id))
+    conn.commit()
+    return True
+
+
 def delete_meal(conn: sqlite3.Connection, user_id: int, meal_id: int) -> bool:
     cursor = conn.execute("DELETE FROM meals WHERE id = ? AND user_id = ?", (meal_id, user_id))
     conn.commit()

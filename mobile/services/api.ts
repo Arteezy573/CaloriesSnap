@@ -163,6 +163,16 @@ export async function createMeal(meal: {
   });
 }
 
+export async function updateMeal(
+  mealId: number,
+  payload: { foods: FoodItem[]; notes?: string }
+): Promise<Meal> {
+  return request<Meal>(`/api/meals/${mealId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deleteMeal(mealId: number): Promise<void> {
   await request(`/api/meals/${mealId}`, { method: "DELETE" });
 }

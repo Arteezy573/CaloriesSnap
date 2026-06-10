@@ -6,13 +6,23 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   TouchableOpacity,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import FoodItemRow from "../../components/FoodItemRow";
 import MacroBar from "../../components/MacroBar";
 import MealCard from "../../components/MealCard";
-import { DailySummary, Meal, deleteMeal, getDailySummary, getMeals } from "../../services/api";
+import {
+  DailySummary,
+  FoodItem,
+  Meal,
+  deleteMeal,
+  getDailySummary,
+  getMeals,
+  updateMeal,
+} from "../../services/api";
 import { localDateString as toISO } from "../../services/dates";
 
 function todayISO(): string {
@@ -81,6 +91,33 @@ export default function DashboardScreen() {
     loadData(today);
   }
 
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [editFoods, setEditFoods] = useState<FoodItem[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEdit(meal: Meal) {
+    setEditingMeal(meal);
+    setEditFoods(meal.foods.map((f) => ({ ...f })));
+  }
+
+  function updateEditFood(index: number, updated: FoodItem) {
+    setEditFoods((prev) => prev.map((f, i) => (i === index ? updated : f)));
+  }
+
+  async function saveEdit() {
+    if (!editingMeal) return;
+    setSavingEdit(true);
+    try {
+      await updateMeal(editingMeal.id, { foods: editFoods });
+      setEditingMeal(null);
+      loadData();
+    } catch (e: any) {
+      Alert.alert("Error", "Could not update meal: " + e.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function handleDelete(mealId: number) {
     try {
       await deleteMeal(mealId);
@@ -147,10 +184,31 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           meals.map((meal) => (
-            <MealCard key={meal.id} meal={meal} onDelete={handleDelete} />
+            <MealCard key={meal.id} meal={meal} onDelete={handleDelete} onEdit={openEdit} />
           ))
         )}
       </View>
+
+      <Modal visible={editingMeal !== null} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Meal</Text>
+            <ScrollView style={styles.modalScroll}>
+              {editFoods.map((food, i) => (
+                <FoodItemRow key={i} item={food} index={i} onUpdate={updateEditFood} editable />
+              ))}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingMeal(null)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={savingEdit}>
+                <Text style={styles.saveBtnText}>{savingEdit ? "Saving..." : "Save"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -188,4 +246,37 @@ const styles = StyleSheet.create({
   mealsSection: { paddingHorizontal: 16, paddingBottom: 32 },
   mealsTitle: { fontSize: 13, color: "#888", marginBottom: 8 },
   emptyText: { color: "#666", fontSize: 14, textAlign: "center", marginTop: 20 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: "#0f0f1a",
+    borderRadius: 14,
+    padding: 16,
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderColor: "#2a2a4a",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#fff", marginBottom: 12 },
+  modalScroll: { flexGrow: 0 },
+  modalActions: { flexDirection: "row", gap: 12, marginTop: 16 },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: "#333",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+  },
+  cancelBtnText: { color: "#fff", fontSize: 14 },
+  saveBtn: {
+    flex: 1,
+    backgroundColor: "#4ecdc4",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+  },
+  saveBtnText: { color: "#000", fontSize: 14, fontWeight: "bold" },
 });

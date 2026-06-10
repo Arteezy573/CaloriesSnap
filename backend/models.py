@@ -58,6 +58,11 @@ class MealRequest(BaseModel):
         return v
 
 
+class MealUpdateRequest(BaseModel):
+    foods: list[FoodItem] = Field(min_length=1)
+    notes: Optional[str] = None
+
+
 class FoodItemResponse(BaseModel):
     id: int
     name: str

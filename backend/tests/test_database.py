@@ -4,11 +4,37 @@ from database import (
     delete_meal,
     get_daily_summary,
     get_goals,
+    get_meal,
     get_meals_by_date,
     get_user_by_email,
     init_db,
     update_goals,
+    update_meal,
 )
+
+CHICKEN = {"name": "Chicken", "quantity": "200g", "calories": 350, "protein_g": 42.0, "carbs_g": 0.0, "fat_g": 8.5}
+RICE = {"name": "Rice", "quantity": "1 bowl", "calories": 260, "protein_g": 5.0, "carbs_g": 57.0, "fat_g": 0.5}
+
+
+def test_update_meal_replaces_foods(db, test_user):
+    meal_id = create_meal(db, user_id=test_user, date="2026-06-10", source="manual", foods=[CHICKEN])
+    assert update_meal(db, test_user, meal_id, foods=[CHICKEN, RICE]) is True
+    meal = get_meal(db, test_user, meal_id)
+    assert len(meal["foods"]) == 2
+    assert meal["total_calories"] == 610
+
+
+def test_update_meal_wrong_user(db, test_user):
+    other_user = create_user(db, email="other@example.com", password_hash="fakehash")
+    meal_id = create_meal(db, user_id=test_user, date="2026-06-10", source="manual", foods=[CHICKEN])
+    assert update_meal(db, other_user, meal_id, foods=[RICE]) is False
+    meal = get_meal(db, test_user, meal_id)
+    assert len(meal["foods"]) == 1
+    assert meal["foods"][0]["name"] == "Chicken"
+
+
+def test_get_meal_missing_returns_none(db, test_user):
+    assert get_meal(db, test_user, 9999) is None
 
 
 def test_init_db_creates_tables(db):
