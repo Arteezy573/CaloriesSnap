@@ -10,20 +10,36 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Card from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import CalorieRing from "../../components/CalorieRing";
+import Confetti from "../../components/Confetti";
+import MacroPill from "../../components/MacroPill";
+import StreakBadge from "../../components/StreakBadge";
+import MealRow from "../../components/MealRow";
 import FoodItemRow from "../../components/FoodItemRow";
-import MacroBar from "../../components/MacroBar";
-import MealCard from "../../components/MealCard";
 import {
   DailySummary,
   FoodItem,
   Meal,
   deleteMeal,
   getDailySummary,
+  getHistory,
   getMeals,
   updateMeal,
 } from "../../services/api";
 import { localDateString as toISO } from "../../services/dates";
+import { computeStreak, StreakInfo } from "../../services/streak";
+import { colors, spacing, type } from "../../theme";
+
+const LAST_CELEBRATED_KEY = "lastCelebratedDate";
+const EMPTY_STREAK: StreakInfo = { current: 0, best: 0, todayLogged: false, last7: [false, false, false, false, false, false, false] };
 
 function todayISO(): string {
   return toISO(new Date());
@@ -37,17 +53,47 @@ function shiftDate(dateStr: string, days: number): string {
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return d
+    .toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+    .toUpperCase();
 }
 
 export default function DashboardScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [streak, setStreak] = useState<StreakInfo>(EMPTY_STREAK);
+  const [celebrating, setCelebrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const isToday = selectedDate === todayISO();
+
+  async function loadStreak() {
+    const today = todayISO();
+    try {
+      const history = await getHistory(shiftDate(today, -89), today);
+      const s = computeStreak(history, today);
+      setStreak(s);
+
+      // Celebrate the first log of the day, once.
+      if (s.todayLogged) {
+        const last = await AsyncStorage.getItem(LAST_CELEBRATED_KEY);
+        if (last !== today) {
+          await AsyncStorage.setItem(LAST_CELEBRATED_KEY, today);
+          setCelebrating(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showToast(`🔥 ${s.current}-day streak!`);
+          setTimeout(() => setCelebrating(false), 1100);
+        }
+      }
+    } catch {
+      // streak is decorative — never block the dashboard on it
+    }
+  }
 
   async function loadData(date?: string) {
     const d = date || selectedDate;
@@ -55,6 +101,7 @@ export default function DashboardScreen() {
       const [s, m] = await Promise.all([getDailySummary(d), getMeals(d)]);
       setSummary(s);
       setMeals(m);
+      loadStreak();
     } catch (e: any) {
       Alert.alert("Error", "Could not load data: " + e.message);
     } finally {
@@ -69,16 +116,9 @@ export default function DashboardScreen() {
     }, [selectedDate])
   );
 
-  function goToPreviousDay() {
-    const prev = shiftDate(selectedDate, -1);
-    setSelectedDate(prev);
-    setLoading(true);
-    loadData(prev);
-  }
-
-  function goToNextDay() {
-    if (isToday) return;
-    const next = shiftDate(selectedDate, 1);
+  function changeDay(days: number) {
+    const next = shiftDate(selectedDate, days);
+    if (days > 0 && isToday) return;
     setSelectedDate(next);
     setLoading(true);
     loadData(next);
@@ -110,6 +150,7 @@ export default function DashboardScreen() {
     try {
       await updateMeal(editingMeal.id, { foods: editFoods });
       setEditingMeal(null);
+      showToast("Meal updated");
       loadData();
     } catch (e: any) {
       Alert.alert("Error", "Could not update meal: " + e.message);
@@ -118,93 +159,115 @@ export default function DashboardScreen() {
     }
   }
 
-  async function handleDelete(mealId: number) {
-    try {
-      await deleteMeal(mealId);
-      loadData();
-    } catch (e: any) {
-      Alert.alert("Error", "Could not delete meal: " + e.message);
-    }
+  function confirmDelete(mealId: number) {
+    Alert.alert("Delete meal?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteMeal(mealId);
+            showToast("Meal deleted");
+            loadData();
+          } catch (e: any) {
+            Alert.alert("Error", "Could not delete meal: " + e.message);
+          }
+        },
+      },
+    ]);
   }
 
   if (loading || !summary) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#4ecdc4" size="large" />
+        <ActivityIndicator color={colors.accent} size="large" />
       </View>
     );
   }
 
-  const pct = summary.goals.calories > 0
-    ? Math.round((summary.consumed.calories / summary.goals.calories) * 100)
-    : 0;
-
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#4ecdc4" />}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.s, paddingBottom: 32 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            loadData();
+          }}
+          tintColor={colors.accent}
+        />
+      }
     >
-      <View style={styles.dateNav}>
-        <TouchableOpacity onPress={goToPreviousDay} style={styles.arrow}>
-          <Text style={styles.arrowText}>{"<"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goToToday}>
-          <Text style={styles.dateText}>{formatDate(selectedDate)}</Text>
-          {!isToday && <Text style={styles.todayHint}>Tap for today</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goToNextDay} style={styles.arrow} disabled={isToday}>
-          <Text style={[styles.arrowText, isToday && { color: "#333" }]}>{">"}</Text>
-        </TouchableOpacity>
-      </View>
-
       <View style={styles.header}>
-        <Text style={styles.calorieText}>
-          {summary.consumed.calories} / {summary.goals.calories}
+        <View>
+          <Text style={type.label}>{formatDate(selectedDate)}</Text>
+          <Text style={type.largeTitle}>{isToday ? "Today" : "History"}</Text>
+        </View>
+        <StreakBadge streak={streak} />
+      </View>
+
+      <View style={styles.dateNav}>
+        <TouchableOpacity onPress={() => changeDay(-1)} hitSlop={12} style={styles.arrow}>
+          <Ionicons name="chevron-back" size={20} color={colors.accent} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={goToToday} disabled={isToday}>
+          <Text style={styles.dateNavText}>{isToday ? "" : "Back to today"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => changeDay(1)} hitSlop={12} style={styles.arrow} disabled={isToday}>
+          <Ionicons name="chevron-forward" size={20} color={isToday ? colors.separator : colors.accent} />
+        </TouchableOpacity>
+      </View>
+
+      <Card style={styles.ringCard}>
+        <CalorieRing consumed={summary.consumed.calories} goal={summary.goals.calories} />
+        <Text style={styles.ringCaption}>
+          {summary.consumed.calories} eaten · {summary.goals.calories} goal
         </Text>
-        <Text style={styles.remainingText}>
-          kcal remaining: {Math.max(summary.remaining.calories, 0)}
-        </Text>
-      </View>
+        <View style={styles.macroRow}>
+          <MacroPill label="Protein" current={summary.consumed.protein_g} goal={summary.goals.protein_g} color={colors.protein} />
+          <MacroPill label="Carbs" current={summary.consumed.carbs_g} goal={summary.goals.carbs_g} color={colors.carbs} />
+          <MacroPill label="Fat" current={summary.consumed.fat_g} goal={summary.goals.fat_g} color={colors.fat} />
+        </View>
+        {celebrating && <Confetti />}
+      </Card>
 
-      <View style={styles.ring}>
-        <Text style={styles.pct}>{pct}%</Text>
-      </View>
-
-      <View style={styles.macros}>
-        <MacroBar label="Protein" current={summary.consumed.protein_g} goal={summary.goals.protein_g} color="#ff6b6b" />
-        <MacroBar label="Carbs" current={summary.consumed.carbs_g} goal={summary.goals.carbs_g} color="#f7dc6f" />
-        <MacroBar label="Fat" current={summary.consumed.fat_g} goal={summary.goals.fat_g} color="#45b7d1" />
-      </View>
-
-      <View style={styles.mealsSection}>
-        <Text style={styles.mealsTitle}>{isToday ? "Today's Meals" : "Meals"}</Text>
-        {meals.length === 0 ? (
-          <Text style={styles.emptyText}>
-            {isToday ? "No meals logged yet. Tap Snap to add one!" : "No meals logged this day."}
-          </Text>
-        ) : (
-          meals.map((meal) => (
-            <MealCard key={meal.id} meal={meal} onDelete={handleDelete} onEdit={openEdit} />
-          ))
-        )}
-      </View>
+      <Text style={[type.label, styles.sectionLabel]}>MEALS</Text>
+      {meals.length === 0 ? (
+        <Card style={styles.emptyCard}>
+          <Text style={styles.emptyEmoji}>🍽️</Text>
+          <Text style={type.headline}>{isToday ? "No meals yet" : "Nothing logged this day"}</Text>
+          {isToday && (
+            <>
+              <Text style={[type.footnote, { textAlign: "center", marginTop: 4 }]}>
+                Snap a photo and AI does the math.
+              </Text>
+              <Button title="Snap your first meal" onPress={() => router.navigate("/snap")} style={{ marginTop: 14, alignSelf: "stretch" }} />
+            </>
+          )}
+        </Card>
+      ) : (
+        <Card style={styles.mealsCard}>
+          {meals.map((meal, i) => (
+            <MealRow key={meal.id} meal={meal} isLast={i === meals.length - 1} onEdit={openEdit} onDelete={confirmDelete} />
+          ))}
+        </Card>
+      )}
 
       <Modal visible={editingMeal !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit Meal</Text>
+            <Text style={type.title}>Edit Meal</Text>
             <ScrollView style={styles.modalScroll}>
               {editFoods.map((food, i) => (
                 <FoodItemRow key={i} item={food} index={i} onUpdate={updateEditFood} editable />
               ))}
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingMeal(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveEdit} disabled={savingEdit}>
-                <Text style={styles.saveBtnText}>{savingEdit ? "Saving..." : "Save"}</Text>
-              </TouchableOpacity>
+              <Button title="Cancel" variant="tinted" onPress={() => setEditingMeal(null)} style={{ flex: 1 }} />
+              <Button title="Save" onPress={saveEdit} loading={savingEdit} style={{ flex: 1 }} />
             </View>
           </View>
         </View>
@@ -214,69 +277,32 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f1a" },
-  center: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: colors.background },
+  center: { flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.l,
+  },
   dateNav: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.xs,
   },
-  arrow: { padding: 12 },
-  arrowText: { fontSize: 24, color: "#4ecdc4", fontWeight: "bold" },
-  dateText: { fontSize: 14, color: "#888", textAlign: "center" },
-  todayHint: { fontSize: 11, color: "#4ecdc4", textAlign: "center", marginTop: 2 },
-  header: { alignItems: "center", paddingTop: 8, paddingBottom: 8 },
-  calorieText: { fontSize: 28, fontWeight: "bold", color: "#fff", marginTop: 4 },
-  remainingText: { fontSize: 13, color: "#4ecdc4", marginTop: 2 },
-  ring: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 10,
-    borderColor: "#333",
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  pct: { fontSize: 28, fontWeight: "bold", color: "#fff" },
-  macros: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 20 },
-  mealsSection: { paddingHorizontal: 16, paddingBottom: 32 },
-  mealsTitle: { fontSize: 13, color: "#888", marginBottom: 8 },
-  emptyText: { color: "#666", fontSize: 14, textAlign: "center", marginTop: 20 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    padding: 16,
-  },
-  modalCard: {
-    backgroundColor: "#0f0f1a",
-    borderRadius: 14,
-    padding: 16,
-    maxHeight: "80%",
-    borderWidth: 1,
-    borderColor: "#2a2a4a",
-  },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#fff", marginBottom: 12 },
-  modalScroll: { flexGrow: 0 },
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 16 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: "#333",
-    borderRadius: 10,
-    padding: 14,
-    alignItems: "center",
-  },
-  cancelBtnText: { color: "#fff", fontSize: 14 },
-  saveBtn: {
-    flex: 1,
-    backgroundColor: "#4ecdc4",
-    borderRadius: 10,
-    padding: 14,
-    alignItems: "center",
-  },
-  saveBtnText: { color: "#000", fontSize: 14, fontWeight: "bold" },
+  arrow: { padding: spacing.s },
+  dateNavText: { fontSize: 13, color: colors.accent, fontWeight: "600" },
+  ringCard: { marginHorizontal: spacing.l, alignItems: "center", overflow: "hidden" },
+  ringCaption: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.s },
+  macroRow: { flexDirection: "row", gap: spacing.s, marginTop: spacing.m, alignSelf: "stretch" },
+  sectionLabel: { marginTop: spacing.l, marginBottom: spacing.s, marginLeft: spacing.l + 4 },
+  mealsCard: { marginHorizontal: spacing.l, paddingVertical: spacing.xs },
+  emptyCard: { marginHorizontal: spacing.l, alignItems: "center", paddingVertical: spacing.xl },
+  emptyEmoji: { fontSize: 40, marginBottom: spacing.s },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: spacing.l },
+  modalCard: { backgroundColor: colors.card, borderRadius: 16, padding: spacing.l, maxHeight: "80%" },
+  modalScroll: { flexGrow: 0, marginTop: spacing.m },
+  modalActions: { flexDirection: "row", gap: spacing.m, marginTop: spacing.l },
 });
