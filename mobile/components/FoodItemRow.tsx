@@ -1,5 +1,6 @@
 import { View, Text, TextInput, StyleSheet } from "react-native";
 import { FoodItem } from "../services/api";
+import { colors } from "../theme";
 
 interface Props {
   item: FoodItem;
@@ -78,23 +79,28 @@ export default function FoodItemRow({ item, index, onUpdate, editable }: Props) 
 }
 
 const styles = StyleSheet.create({
-  row: { backgroundColor: "#1e1e36", borderRadius: 10, padding: 12, marginBottom: 8 },
+  row: {
+    backgroundColor: colors.fill,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  name: { color: "#fff", fontSize: 14, flex: 1 },
-  nameInput: { color: "#fff", fontSize: 14, flex: 1, borderBottomWidth: 1, borderBottomColor: "#4ecdc4", paddingBottom: 2 },
-  calories: { color: "#fff", fontSize: 14, marginLeft: 8 },
-  detail: { color: "#888", fontSize: 12, marginTop: 4 },
+  name: { color: colors.text, fontSize: 14, flex: 1, fontWeight: "500" },
+  nameInput: { color: colors.text, fontSize: 14, flex: 1, borderBottomWidth: 1, borderBottomColor: colors.accent, paddingBottom: 2 },
+  calories: { color: colors.text, fontSize: 14, marginLeft: 8, fontWeight: "600" },
+  detail: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   editDetailRow: { flexDirection: "row", alignItems: "center", marginTop: 8, gap: 4 },
-  qtyInput: { fontSize: 12, color: "#888" },
+  qtyInput: { fontSize: 12, color: colors.textSecondary },
   numInput: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 13,
     minWidth: 44,
     textAlign: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#4ecdc4",
+    borderBottomColor: colors.accent,
     paddingBottom: 2,
     marginLeft: 6,
   },
-  unit: { color: "#888", fontSize: 12, marginLeft: 6 },
+  unit: { color: colors.textSecondary, fontSize: 12, marginLeft: 6 },
 });

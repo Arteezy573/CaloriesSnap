@@ -1,18 +1,15 @@
 import { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  TouchableOpacity,
-  Dimensions,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Dimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
-import Svg, { Polyline, Line, Circle, Text as SvgText } from "react-native-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Polyline, Polygon, Line, Circle, Text as SvgText } from "react-native-svg";
+import Card from "../../components/ui/Card";
+import Segmented from "../../components/ui/Segmented";
+import WeeklyReportCard from "../../components/WeeklyReportCard";
 import { HistoryEntry, getHistory, getGoals, Goals } from "../../services/api";
 import { localDateString } from "../../services/dates";
+import { computeStreak, StreakInfo } from "../../services/streak";
+import { colors, spacing, type } from "../../theme";
 
 const RANGES = [
   { label: "7D", days: 7 },
@@ -43,7 +40,7 @@ function MiniChart({ data, color, label, unit, goalValue }: ChartProps) {
   if (data.length === 0) return null;
 
   const screenWidth = Dimensions.get("window").width;
-  const chartW = screenWidth - 64;
+  const chartW = screenWidth - spacing.l * 2 - spacing.l * 2; // screen - margins - card padding
   const chartH = 140;
   const padTop = 20;
   const padBottom = 24;
@@ -65,6 +62,8 @@ function MiniChart({ data, color, label, unit, goalValue }: ChartProps) {
   });
 
   const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
+  const baselineY = padTop + plotH;
+  const areaPoints = `${points[0].x},${baselineY} ${polylinePoints} ${points[points.length - 1].x},${baselineY}`;
 
   const labelCount = Math.min(data.length, 5);
   const labelStep = Math.max(1, Math.floor((data.length - 1) / (labelCount - 1)));
@@ -75,12 +74,16 @@ function MiniChart({ data, color, label, unit, goalValue }: ChartProps) {
   const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 
   return (
-    <View style={chartStyles.card}>
+    <Card style={chartStyles.card}>
       <View style={chartStyles.cardHeader}>
         <Text style={[chartStyles.cardLabel, { color }]}>{label}</Text>
-        <Text style={chartStyles.avg}>avg: {avg}{unit}</Text>
+        <Text style={type.footnote}>
+          avg {avg}
+          {unit}
+        </Text>
       </View>
       <Svg width={chartW} height={chartH}>
+        <Polygon points={areaPoints} fill={color} opacity={0.12} />
         {goalValue !== undefined && (
           <>
             <Line
@@ -88,14 +91,14 @@ function MiniChart({ data, color, label, unit, goalValue }: ChartProps) {
               y1={padTop + plotH - ((goalValue - minVal) / range) * plotH}
               x2={padLeft + plotW}
               y2={padTop + plotH - ((goalValue - minVal) / range) * plotH}
-              stroke="#555"
+              stroke={colors.textSecondary}
               strokeDasharray="4,4"
               strokeWidth={1}
             />
             <SvgText
               x={padLeft + plotW}
               y={padTop + plotH - ((goalValue - minVal) / range) * plotH - 4}
-              fill="#666"
+              fill={colors.textSecondary}
               fontSize={9}
               textAnchor="end"
             >
@@ -108,24 +111,22 @@ function MiniChart({ data, color, label, unit, goalValue }: ChartProps) {
           <Circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
         ))}
         {labelIndices.map((idx) => (
-          <SvgText
-            key={idx}
-            x={points[idx].x}
-            y={chartH - 4}
-            fill="#666"
-            fontSize={9}
-            textAnchor="middle"
-          >
+          <SvgText key={idx} x={points[idx].x} y={chartH - 4} fill={colors.textSecondary} fontSize={9} textAnchor="middle">
             {formatShortDate(data[idx].date)}
           </SvgText>
         ))}
       </Svg>
-    </View>
+    </Card>
   );
 }
 
+const EMPTY_STREAK: StreakInfo = { current: 0, best: 0, todayLogged: false, last7: [false, false, false, false, false, false, false] };
+
 export default function TrendsScreen() {
+  const insets = useSafeAreaInsets();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [week, setWeek] = useState<HistoryEntry[]>([]);
+  const [streak, setStreak] = useState<StreakInfo>(EMPTY_STREAK);
   const [goals, setGoals] = useState<Goals | null>(null);
   const [loading, setLoading] = useState(true);
   const [rangeIdx, setRangeIdx] = useState(0);
@@ -133,11 +134,16 @@ export default function TrendsScreen() {
   async function loadData() {
     try {
       const range = RANGES[rangeIdx];
-      const start = daysAgo(range.days - 1);
       const end = localDateString();
-      const [h, g] = await Promise.all([getHistory(start, end), getGoals()]);
+      const [h, g, w] = await Promise.all([
+        getHistory(daysAgo(range.days - 1), end),
+        getGoals(),
+        getHistory(daysAgo(6), end),
+      ]);
       setHistory(h);
       setGoals(g);
+      setWeek(w);
+      setStreak(computeStreak(w, end));
     } catch (e: any) {
       Alert.alert("Error", "Could not load history: " + e.message);
     } finally {
@@ -152,10 +158,10 @@ export default function TrendsScreen() {
     }, [rangeIdx])
   );
 
-  if (loading) {
+  if (loading || !goals) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#4ecdc4" size="large" />
+        <ActivityIndicator color={colors.accent} size="large" />
       </View>
     );
   }
@@ -166,31 +172,27 @@ export default function TrendsScreen() {
   const fatData = history.map((h) => ({ date: h.date, value: Math.round(h.fat_g) }));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Trends</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.s, paddingHorizontal: spacing.l, paddingBottom: 32 }}
+    >
+      <Text style={type.largeTitle}>Trends</Text>
 
-      <View style={styles.rangeRow}>
-        {RANGES.map((r, i) => (
-          <TouchableOpacity
-            key={r.label}
-            style={[styles.rangeBtn, i === rangeIdx && styles.rangeBtnActive]}
-            onPress={() => setRangeIdx(i)}
-          >
-            <Text style={[styles.rangeBtnText, i === rangeIdx && styles.rangeBtnTextActive]}>
-              {r.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ marginTop: spacing.m, marginBottom: spacing.m }}>
+        <WeeklyReportCard week={week} goals={goals} streak={streak} />
+        <Segmented options={RANGES.map((r) => r.label)} selectedIndex={rangeIdx} onChange={setRangeIdx} />
       </View>
 
       {history.length === 0 ? (
-        <Text style={styles.emptyText}>No data for this period. Start logging meals!</Text>
+        <Text style={[type.footnote, { textAlign: "center", marginTop: 40 }]}>
+          No data for this period. Start logging meals!
+        </Text>
       ) : (
         <>
-          <MiniChart data={calData} color="#4ecdc4" label="Calories" unit=" kcal" goalValue={goals?.calories} />
-          <MiniChart data={proteinData} color="#ff6b6b" label="Protein" unit="g" goalValue={goals?.protein_g} />
-          <MiniChart data={carbsData} color="#f7dc6f" label="Carbs" unit="g" goalValue={goals?.carbs_g} />
-          <MiniChart data={fatData} color="#45b7d1" label="Fat" unit="g" goalValue={goals?.fat_g} />
+          <MiniChart data={calData} color={colors.accent} label="Calories" unit=" kcal" goalValue={goals.calories} />
+          <MiniChart data={proteinData} color={colors.protein} label="Protein" unit="g" goalValue={goals.protein_g} />
+          <MiniChart data={carbsData} color={colors.carbs} label="Carbs" unit="g" goalValue={goals.carbs_g} />
+          <MiniChart data={fatData} color={colors.fat} label="Fat" unit="g" goalValue={goals.fat_g} />
         </>
       )}
     </ScrollView>
@@ -198,36 +200,12 @@ export default function TrendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f1a" },
-  content: { padding: 16, paddingBottom: 32 },
-  center: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "bold", color: "#fff", marginBottom: 16 },
-  rangeRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  rangeBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#1e1e36",
-  },
-  rangeBtnActive: { backgroundColor: "#4ecdc4" },
-  rangeBtnText: { color: "#888", fontSize: 14, fontWeight: "600" },
-  rangeBtnTextActive: { color: "#000" },
-  emptyText: { color: "#666", fontSize: 14, textAlign: "center", marginTop: 40 },
+  container: { flex: 1, backgroundColor: colors.background },
+  center: { flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
 });
 
 const chartStyles = StyleSheet.create({
-  card: {
-    backgroundColor: "#1e1e36",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  cardLabel: { fontSize: 14, fontWeight: "bold" },
-  avg: { fontSize: 12, color: "#888" },
+  card: { marginBottom: spacing.m },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.s },
+  cardLabel: { fontSize: 14, fontWeight: "700" },
 });

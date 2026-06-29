@@ -1,18 +1,11 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
 import { login } from "../../services/api";
 import { setToken, notifyAuthChange } from "../../services/auth";
+import { colors, spacing, type } from "../../theme";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -31,9 +24,7 @@ export default function LoginScreen() {
       await setToken(result.token);
       notifyAuthChange(true);
     } catch (e: any) {
-      const msg = e.message.includes("401")
-        ? "Invalid email or password."
-        : "Login failed. Please try again.";
+      const msg = e.message.includes("401") ? "Invalid email or password." : "Login failed. Please try again.";
       Alert.alert("Error", msg);
     } finally {
       setLoading(false);
@@ -41,47 +32,18 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.content}>
-        <Text style={styles.title}>CaloriesSnap</Text>
-        <Text style={styles.subtitle}>Log in to your account</Text>
+        <Text style={styles.logo}>🥗</Text>
+        <Text style={[type.largeTitle, styles.title]}>CaloriesSnap</Text>
+        <Text style={[type.footnote, styles.subtitle]}>Log in to your account</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#666"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Input placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+        <Input placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#666"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <Button title="Log In" onPress={handleLogin} loading={loading} style={{ marginTop: spacing.s }} />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.buttonText}>Log In</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+        <TouchableOpacity onPress={() => router.push("/(auth)/register")} style={{ marginTop: spacing.xl }}>
           <Text style={styles.link}>
             Don't have an account? <Text style={styles.linkBold}>Sign up</Text>
           </Text>
@@ -92,38 +54,11 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f1a" },
-  content: { flex: 1, justifyContent: "center", padding: 24 },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#4ecdc4",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#888",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  input: {
-    backgroundColor: "#1e1e36",
-    borderRadius: 10,
-    padding: 14,
-    color: "#fff",
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  button: {
-    backgroundColor: "#4ecdc4",
-    borderRadius: 10,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  buttonText: { color: "#000", fontSize: 16, fontWeight: "bold" },
-  link: { color: "#888", textAlign: "center", fontSize: 14 },
-  linkBold: { color: "#4ecdc4", fontWeight: "bold" },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flex: 1, justifyContent: "center", padding: spacing.xl },
+  logo: { fontSize: 56, textAlign: "center", marginBottom: spacing.s },
+  title: { textAlign: "center" },
+  subtitle: { textAlign: "center", marginTop: 4, marginBottom: spacing.xxl },
+  link: { color: colors.textSecondary, textAlign: "center", fontSize: 14 },
+  linkBold: { color: colors.accent, fontWeight: "700" },
 });

@@ -6,9 +6,11 @@ A personal iPhone app that estimates calories and macros from food photos using 
 
 - **Photo Analysis** — Take a photo of your meal, get instant calorie and macro estimates powered by Claude Vision
 - **Manual Entry** — Type a food name and let AI estimate the nutrition, or enter values manually
-- **Daily Goals** — Set daily targets for calories, protein, carbs, and fat
-- **Dashboard** — Track progress with a calorie ring, macro progress bars, and meal history
+- **Daily Goals** — Set daily calorie/macro targets; onboarding wizard calculates a TDEE-based plan (Mifflin-St Jeor)
+- **Dashboard** — Animated calorie ring, macro pills, meal list with streak badge; confetti + toast on ring completion
+- **Logging Streak** — Tracks consecutive days logged; streak badge and best-streak shown on dashboard
 - **Editable Results** — Review and adjust AI estimates before saving
+- **Weekly Report Card** — Trends tab shows a weekly summary card alongside daily charts
 - **User Authentication** — Email/password registration with JWT tokens, per-user data isolation
 - **Invite Code** — Registration requires an invite code to prevent unauthorized usage
 - **Rate Limiting** — Daily limit on AI analysis calls to control API costs
@@ -104,8 +106,13 @@ Scan the QR code with your iPhone camera to open in Expo Go.
 ### Running Tests
 
 ```bash
+# Backend (72 tests)
 cd backend
 python -m pytest -v
+
+# Mobile (13 tests)
+cd mobile
+npm test
 ```
 
 ## API Endpoints
@@ -164,17 +171,29 @@ CaloriesSnap/
 ├── mobile/
 │   ├── app/
 │   │   ├── (auth)/
-│   │   │   ├── login.tsx   # Login screen
-│   │   │   └── register.tsx # Registration screen
+│   │   │   ├── login.tsx      # Login screen
+│   │   │   └── register.tsx   # Registration screen
 │   │   ├── (tabs)/
-│   │   │   ├── index.tsx   # Dashboard screen
-│   │   │   ├── snap.tsx    # Camera + manual entry screen
-│   │   │   └── goals.tsx   # Goal settings + logout
-│   │   └── _layout.tsx     # Root layout with auth guard
-│   ├── components/         # MacroBar, MealCard, FoodItemRow
+│   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list)
+│   │   │   ├── snap.tsx       # Camera + manual entry screen
+│   │   │   ├── trends.tsx     # Weekly report card + daily charts
+│   │   │   └── profile.tsx    # Goal settings + logout
+│   │   ├── onboarding.tsx     # Goal wizard (runs after first registration)
+│   │   └── _layout.tsx        # Root layout with auth guard
+│   ├── components/
+│   │   ├── CalorieRing.tsx    # Animated SVG calorie ring
+│   │   ├── Confetti.tsx       # Celebration overlay
+│   │   ├── FoodItemRow.tsx    # Per-food row in snap review
+│   │   ├── MacroPill.tsx      # Compact macro display pill
+│   │   ├── MealRow.tsx        # Meal list row (replaces MealCard)
+│   │   ├── StreakBadge.tsx    # Current/best streak display
+│   │   ├── WeeklyReportCard.tsx # Weekly summary card
+│   │   └── ui/                # Base kit: Button, Card, Input, Segmented, Toast
 │   ├── services/
-│   │   ├── api.ts          # Typed API client
-│   │   └── auth.ts         # Token storage (expo-secure-store)
-│   └── .env                # API URL (not committed)
+│   │   ├── api.ts             # Typed API client
+│   │   ├── auth.ts            # Token storage (expo-secure-store)
+│   │   ├── streak.ts          # Logging streak calculations
+│   │   └── tdee.ts            # TDEE/BMR calculations (Mifflin-St Jeor)
+│   └── .env                   # API URL (not committed)
 └── docs/                   # Design specs and implementation plans
 ```
