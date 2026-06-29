@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   preview: { width: "100%", height: 200, borderRadius: radii.m, marginBottom: spacing.m },
   analyzingPreview: { width: 220, height: 160, borderRadius: radii.m },
   warningBadge: {
-    backgroundColor: "#FFF4E0",
+    backgroundColor: colors.warningSoft,
     borderRadius: radii.pill,
     paddingVertical: 5,
     paddingHorizontal: 12,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: "row", gap: spacing.m, marginTop: spacing.l },
   macroFieldsRow: { flexDirection: "row", gap: spacing.s },
   tipCard: { backgroundColor: colors.accentSoft, marginTop: spacing.s, padding: spacing.m },
-  tipText: { color: "#2E7D32", fontSize: 13 },
+  tipText: { color: colors.tipText, fontSize: 13 },
   savedCard: { flexDirection: "row", alignItems: "center", marginBottom: spacing.s, padding: spacing.m },
   savedInfo: { flex: 1 },
   savedDetail: { color: colors.accent, fontSize: 13, marginTop: 2, fontWeight: "600" },

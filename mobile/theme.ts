@@ -9,6 +9,8 @@ export const colors = {
 
   accent: "#34C759", // green — ring, primary buttons
   accentSoft: "#E8F5E9",
+  warningSoft: "#FFF4E0",
+  tipText: "#2E7D32",
   overGoal: "#FF9500", // amber ring when over goal (never red)
 
   protein: "#FF3B30",
