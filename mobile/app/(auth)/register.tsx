@@ -11,8 +11,10 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { register } from "../../services/api";
 import { setToken, notifyAuthChange } from "../../services/auth";
+import { PENDING_ONBOARDING_KEY } from "../_layout";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -39,6 +41,7 @@ export default function RegisterScreen() {
     try {
       const result = await register(email.trim(), password, inviteCode.trim());
       await setToken(result.token);
+      await AsyncStorage.setItem(PENDING_ONBOARDING_KEY, "1");
       notifyAuthChange(true);
     } catch (e: any) {
       const msg = e.message.includes("409")
