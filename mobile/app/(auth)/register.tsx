@@ -1,20 +1,13 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
 import { register } from "../../services/api";
 import { setToken, notifyAuthChange } from "../../services/auth";
 import { PENDING_ONBOARDING_KEY } from "../_layout";
+import { colors, spacing, type } from "../../theme";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -56,66 +49,20 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.content}>
-        <Text style={styles.title}>CaloriesSnap</Text>
-        <Text style={styles.subtitle}>Create your account</Text>
+        <Text style={styles.logo}>🥗</Text>
+        <Text style={[type.largeTitle, styles.title]}>CaloriesSnap</Text>
+        <Text style={[type.footnote, styles.subtitle]}>Create your account</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#666"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Input placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+        <Input placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+        <Input placeholder="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+        <Input placeholder="Invite Code" value={inviteCode} onChangeText={setInviteCode} autoCapitalize="none" autoCorrect={false} />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#666"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <Button title="Create Account" onPress={handleRegister} loading={loading} style={{ marginTop: spacing.s }} />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="#666"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Invite Code"
-          placeholderTextColor="#666"
-          value={inviteCode}
-          onChangeText={setInviteCode}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: spacing.xl }}>
           <Text style={styles.link}>
             Already have an account? <Text style={styles.linkBold}>Log in</Text>
           </Text>
@@ -126,38 +73,11 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f1a" },
-  content: { flex: 1, justifyContent: "center", padding: 24 },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#4ecdc4",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#888",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  input: {
-    backgroundColor: "#1e1e36",
-    borderRadius: 10,
-    padding: 14,
-    color: "#fff",
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  button: {
-    backgroundColor: "#4ecdc4",
-    borderRadius: 10,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  buttonText: { color: "#000", fontSize: 16, fontWeight: "bold" },
-  link: { color: "#888", textAlign: "center", fontSize: 14 },
-  linkBold: { color: "#4ecdc4", fontWeight: "bold" },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flex: 1, justifyContent: "center", padding: spacing.xl },
+  logo: { fontSize: 56, textAlign: "center", marginBottom: spacing.s },
+  title: { textAlign: "center" },
+  subtitle: { textAlign: "center", marginTop: 4, marginBottom: spacing.xxl },
+  link: { color: colors.textSecondary, textAlign: "center", fontSize: 14 },
+  linkBold: { color: colors.accent, fontWeight: "700" },
 });
