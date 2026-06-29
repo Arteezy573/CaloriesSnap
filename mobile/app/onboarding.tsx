@@ -45,6 +45,37 @@ const PACE_OPTIONS: OptionDef<Pace>[] = [
   { value: "standard", title: "Standard", subtitle: "±500 kcal/day · ~0.5 kg per week" },
 ];
 
+function OptionList<T extends string>({ options, selected, onSelect, onNext }: { options: OptionDef<T>[]; selected: T | null; onSelect: (v: T) => void; onNext: () => void }) {
+  return (
+    <View style={{ gap: spacing.m }}>
+      {options.map((o) => (
+        <TouchableOpacity
+          key={o.value}
+          style={[styles.option, selected === o.value && styles.optionSelected]}
+          onPress={() => {
+            onSelect(o.value);
+            Haptics.selectionAsync();
+            setTimeout(onNext, 180);
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.optionTitle}>{o.title}</Text>
+          {o.subtitle ? <Text style={type.footnote}>{o.subtitle}</Text> : null}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function NumericStep({ label, value, onChange, placeholder, unit, onNext }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; unit: string; onNext: () => void }) {
+  return (
+    <View>
+      <Input label={`${label} (${unit})`} value={value} onChangeText={onChange} keyboardType="numeric" placeholder={placeholder} autoFocus />
+      <Button title="Continue" onPress={onNext} disabled={!value.trim()} />
+    </View>
+  );
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -94,6 +125,8 @@ export default function OnboardingScreen() {
       next();
     }, 1500);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally depend only on `step`; answer state is read at fire time, not tracked.
   }, [step]);
 
   async function savePlan() {
@@ -107,37 +140,6 @@ export default function OnboardingScreen() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function OptionList<T extends string>({ options, selected, onSelect }: { options: OptionDef<T>[]; selected: T | null; onSelect: (v: T) => void }) {
-    return (
-      <View style={{ gap: spacing.m }}>
-        {options.map((o) => (
-          <TouchableOpacity
-            key={o.value}
-            style={[styles.option, selected === o.value && styles.optionSelected]}
-            onPress={() => {
-              onSelect(o.value);
-              Haptics.selectionAsync();
-              setTimeout(next, 180);
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.optionTitle}>{o.title}</Text>
-            {o.subtitle ? <Text style={type.footnote}>{o.subtitle}</Text> : null}
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  }
-
-  function NumericStep({ label, value, onChange, placeholder, unit }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; unit: string }) {
-    return (
-      <View>
-        <Input label={`${label} (${unit})`} value={value} onChangeText={onChange} keyboardType="numeric" placeholder={placeholder} autoFocus />
-        <Button title="Continue" onPress={next} disabled={!value.trim()} />
-      </View>
-    );
   }
 
   const QUESTION_TITLES: Record<Step, string> = {
@@ -176,13 +178,13 @@ export default function OnboardingScreen() {
 
         <Text style={[type.title, { marginTop: spacing.xl, marginBottom: spacing.xl }]}>{QUESTION_TITLES[step]}</Text>
 
-        {step === "sex" && <OptionList options={SEX_OPTIONS} selected={sex} onSelect={setSex} />}
-        {step === "age" && <NumericStep label="Age" value={age} onChange={setAge} placeholder="e.g. 30" unit="years" />}
-        {step === "height" && <NumericStep label="Height" value={height} onChange={setHeight} placeholder="e.g. 175" unit="cm" />}
-        {step === "weight" && <NumericStep label="Weight" value={weight} onChange={setWeight} placeholder="e.g. 70" unit="kg" />}
-        {step === "activity" && <OptionList options={ACTIVITY_OPTIONS} selected={activity} onSelect={setActivity} />}
-        {step === "direction" && <OptionList options={DIRECTION_OPTIONS} selected={direction} onSelect={setDirection} />}
-        {step === "pace" && <OptionList options={PACE_OPTIONS} selected={pace} onSelect={setPace} />}
+        {step === "sex" && <OptionList options={SEX_OPTIONS} selected={sex} onSelect={setSex} onNext={next} />}
+        {step === "age" && <NumericStep label="Age" value={age} onChange={setAge} placeholder="e.g. 30" unit="years" onNext={next} />}
+        {step === "height" && <NumericStep label="Height" value={height} onChange={setHeight} placeholder="e.g. 175" unit="cm" onNext={next} />}
+        {step === "weight" && <NumericStep label="Weight" value={weight} onChange={setWeight} placeholder="e.g. 70" unit="kg" onNext={next} />}
+        {step === "activity" && <OptionList options={ACTIVITY_OPTIONS} selected={activity} onSelect={setActivity} onNext={next} />}
+        {step === "direction" && <OptionList options={DIRECTION_OPTIONS} selected={direction} onSelect={setDirection} onNext={next} />}
+        {step === "pace" && <OptionList options={PACE_OPTIONS} selected={pace} onSelect={setPace} onNext={next} />}
 
         {step === "building" && (
           <View style={styles.buildingBox}>
