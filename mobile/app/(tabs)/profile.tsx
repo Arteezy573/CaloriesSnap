@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
+import { View, Text, StyleSheet, Alert, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import Card from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import { useToast } from "../../components/ui/Toast";
 import { getGoals, updateGoals } from "../../services/api";
 import { clearToken, notifyAuthChange } from "../../services/auth";
+import { colors, spacing, type } from "../../theme";
 
-export default function GoalsScreen() {
+export default function ProfileScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -52,7 +54,7 @@ export default function GoalsScreen() {
         carbs_g: parseInt(carbs) || 0,
         fat_g: parseInt(fat) || 0,
       });
-      Alert.alert("Saved", "Daily goals updated.");
+      showToast("Goals updated ✓");
     } catch (e: any) {
       Alert.alert("Error", "Could not save goals: " + e.message);
     } finally {
@@ -62,95 +64,52 @@ export default function GoalsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator color="#4ecdc4" size="large" />
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.accent} size="large" />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Daily Goals</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.s, paddingHorizontal: spacing.l, paddingBottom: 40 }}
+    >
+      <Text style={type.largeTitle}>Profile</Text>
 
-      <Text style={styles.label}>DAILY CALORIES</Text>
-      <TextInput
-        style={styles.input}
-        value={calories}
-        onChangeText={setCalories}
-        keyboardType="numeric"
-        placeholderTextColor="#666"
-        placeholder="kcal"
-      />
+      <Text style={[type.label, styles.sectionLabel]}>DAILY GOALS</Text>
+      <Card>
+        <Input label="Calories" value={calories} onChangeText={setCalories} keyboardType="numeric" placeholder="kcal" />
+        <Input label="Protein (g)" value={protein} onChangeText={setProtein} keyboardType="numeric" placeholder="grams" />
+        <Input label="Carbs (g)" value={carbs} onChangeText={setCarbs} keyboardType="numeric" placeholder="grams" />
+        <Input label="Fat (g)" value={fat} onChangeText={setFat} keyboardType="numeric" placeholder="grams" />
+        <Button title="Save goals" onPress={handleSave} loading={saving} />
+      </Card>
 
-      <Text style={[styles.label, { color: "#ff6b6b" }]}>PROTEIN</Text>
-      <TextInput
-        style={styles.input}
-        value={protein}
-        onChangeText={setProtein}
-        keyboardType="numeric"
-        placeholderTextColor="#666"
-        placeholder="grams"
-      />
+      <Text style={[type.label, styles.sectionLabel]}>PLAN</Text>
+      <Card style={{ padding: 0 }}>
+        <TouchableOpacity style={styles.row} onPress={() => router.push("/onboarding")} activeOpacity={0.6}>
+          <Ionicons name="sparkles-outline" size={20} color={colors.accent} />
+          <Text style={styles.rowText}>Recalculate my goals</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </Card>
 
-      <Text style={[styles.label, { color: "#f7dc6f" }]}>CARBS</Text>
-      <TextInput
-        style={styles.input}
-        value={carbs}
-        onChangeText={setCarbs}
-        keyboardType="numeric"
-        placeholderTextColor="#666"
-        placeholder="grams"
-      />
-
-      <Text style={[styles.label, { color: "#45b7d1" }]}>FAT</Text>
-      <TextInput
-        style={styles.input}
-        value={fat}
-        onChangeText={setFat}
-        keyboardType="numeric"
-        placeholderTextColor="#666"
-        placeholder="grams"
-      />
-
-      <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
-        <Text style={styles.buttonText}>{saving ? "Saving..." : "Save Goals"}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Log Out</Text>
-      </TouchableOpacity>
+      <Text style={[type.label, styles.sectionLabel]}>ACCOUNT</Text>
+      <Card style={{ padding: 0 }}>
+        <TouchableOpacity style={styles.row} onPress={handleLogout} activeOpacity={0.6}>
+          <Ionicons name="log-out-outline" size={20} color={colors.destructive} />
+          <Text style={[styles.rowText, { color: colors.destructive }]}>Log Out</Text>
+        </TouchableOpacity>
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f1a" },
-  content: { padding: 20 },
-  title: { fontSize: 22, fontWeight: "bold", color: "#fff", marginBottom: 24 },
-  label: { fontSize: 12, color: "#888", marginBottom: 6, marginTop: 16 },
-  input: {
-    backgroundColor: "#1e1e36",
-    borderRadius: 10,
-    padding: 14,
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  button: {
-    backgroundColor: "#4ecdc4",
-    borderRadius: 10,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 32,
-  },
-  buttonText: { color: "#000", fontSize: 16, fontWeight: "bold" },
-  logoutButton: {
-    borderRadius: 10,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: "#ff6b6b",
-  },
-  logoutText: { color: "#ff6b6b", fontSize: 16, fontWeight: "bold" },
+  container: { flex: 1, backgroundColor: colors.background },
+  center: { flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
+  sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.s, marginLeft: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.m, padding: spacing.l },
+  rowText: { flex: 1, fontSize: 16, fontWeight: "500", color: colors.text },
 });
