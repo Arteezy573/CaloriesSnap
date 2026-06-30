@@ -169,6 +169,27 @@ def resend_verification(
     return {"message": "If that account needs verification, a code was sent."}
 
 
+@app.post("/api/forgot-password", response_model=GenericMessageResponse)
+def forgot_password(
+    req: ForgotPasswordRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)
+):
+    user = get_user_by_email(conn, req.email)
+    if user is not None and user["email_verified"]:
+        code = issue_code(conn, user["id"], "reset")
+        if code is not None:
+            sender.send(req.email, RESET_SUBJECT, f"Your password reset code is {code}")
+    return {"message": "If that email exists, a code was sent."}
+
+
+@app.post("/api/reset-password", response_model=GenericMessageResponse)
+def reset_password(req: ResetPasswordRequest, conn=Depends(get_db_conn)):
+    user = get_user_by_email(conn, req.email)
+    if user is None or not verify_code(conn, user["id"], "reset", req.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    update_user_password(conn, user["id"], hash_password(req.new_password))
+    return {"message": "Password updated."}
+
+
 @app.post("/api/login", response_model=AuthResponse)
 def login(req: LoginRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)):
     user = get_user_by_email(conn, req.email)

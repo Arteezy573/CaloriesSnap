@@ -128,3 +128,45 @@ async def test_login_wrong_password_unverified_still_401(client, sender):
     resp = await client.post("/api/login", json={"email": "wp@test.com", "password": "WRONG"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid email or password"
+
+
+async def _make_verified_user(client, sender, email="reset@test.com", password="secret1"):
+    await client.post("/api/register", json={
+        "email": email, "password": password, "invite_code": "caloriessnap2026",
+    })
+    code = _last_code(sender)
+    await client.post("/api/verify-email", json={"email": email, "code": code})
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_generic_for_unknown_email(client, sender):
+    resp = await client.post("/api/forgot-password", json={"email": "ghost@test.com"})
+    assert resp.status_code == 200
+    assert "message" in resp.json()
+    assert sender.sent == []
+
+
+@pytest.mark.asyncio
+async def test_reset_password_happy_path(client, sender):
+    await _make_verified_user(client, sender)
+    await client.post("/api/forgot-password", json={"email": "reset@test.com"})
+    code = _last_code(sender)
+    resp = await client.post("/api/reset-password", json={
+        "email": "reset@test.com", "code": code, "new_password": "brandnew1",
+    })
+    assert resp.status_code == 200
+    # new password works, old one does not
+    ok = await client.post("/api/login", json={"email": "reset@test.com", "password": "brandnew1"})
+    assert ok.status_code == 200
+    bad = await client.post("/api/login", json={"email": "reset@test.com", "password": "secret1"})
+    assert bad.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_reset_password_wrong_code_400(client, sender):
+    await _make_verified_user(client, sender, email="r2@test.com")
+    await client.post("/api/forgot-password", json={"email": "r2@test.com"})
+    resp = await client.post("/api/reset-password", json={
+        "email": "r2@test.com", "code": "000000", "new_password": "brandnew1",
+    })
+    assert resp.status_code == 400
