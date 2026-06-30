@@ -32,6 +32,7 @@ class GoalsRequest(BaseModel):
     protein_g: int = Field(ge=0)
     carbs_g: int = Field(ge=0)
     fat_g: int = Field(ge=0)
+    goal_weight_kg: Optional[float] = Field(default=None, gt=0)
 
 
 class GoalsResponse(BaseModel):
@@ -40,6 +41,7 @@ class GoalsResponse(BaseModel):
     protein_g: int
     carbs_g: int
     fat_g: int
+    goal_weight_kg: Optional[float] = None
     updated_at: str
 
 
@@ -96,6 +98,8 @@ class SummaryResponse(BaseModel):
     goals: MacroTotals
     consumed: MacroTotals
     remaining: MacroTotals
+    calories_burned: int = 0
+    exercise_count: int = 0
     meals_count: int
 
 
@@ -119,6 +123,36 @@ class HistoryEntry(BaseModel):
     carbs_g: float
     fat_g: float
     meals_count: int
+
+
+class WeightLogRequest(BaseModel):
+    date: str = Field(min_length=1)
+    weight_kg: float = Field(gt=0)
+    note: Optional[str] = None
+
+
+class WeightLogResponse(BaseModel):
+    id: int
+    date: str
+    weight_kg: float
+    note: Optional[str] = None
+    created_at: str
+
+
+class ExerciseRequest(BaseModel):
+    date: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    duration_min: int = Field(ge=0)
+    calories_burned: int = Field(ge=0)
+
+
+class ExerciseResponse(BaseModel):
+    id: int
+    date: str
+    name: str
+    duration_min: int
+    calories_burned: int
+    created_at: str
 
 
 class RegisterRequest(BaseModel):

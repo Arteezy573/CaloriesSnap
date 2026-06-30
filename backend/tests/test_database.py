@@ -70,6 +70,26 @@ def test_update_goals_replaces_previous(db, test_user):
     assert goals["calories"] == 2200
 
 
+def test_get_goals_default_goal_weight_is_none(db, test_user):
+    goals = get_goals(db, test_user)
+    assert goals["goal_weight_kg"] is None
+
+
+def test_update_goals_sets_goal_weight(db, test_user):
+    update_goals(db, test_user, calories=1800, protein_g=120, carbs_g=200, fat_g=50, goal_weight_kg=70.5)
+    goals = get_goals(db, test_user)
+    assert goals["goal_weight_kg"] == 70.5
+
+
+def test_update_goals_preserves_goal_weight_when_omitted(db, test_user):
+    # Setting a goal weight, then updating macros without a goal weight should not clear it.
+    update_goals(db, test_user, calories=1800, protein_g=120, carbs_g=200, fat_g=50, goal_weight_kg=68.0)
+    update_goals(db, test_user, calories=2000, protein_g=150, carbs_g=250, fat_g=60)
+    goals = get_goals(db, test_user)
+    assert goals["goal_weight_kg"] == 68.0
+    assert goals["calories"] == 2000
+
+
 def test_create_meal_and_retrieve(db, test_user):
     foods = [
         {"name": "Chicken", "quantity": "200g", "calories": 350, "protein_g": 42.0, "carbs_g": 0.0, "fat_g": 8.5},

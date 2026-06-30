@@ -36,6 +36,7 @@ export interface Goals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  goal_weight_kg: number | null;
   updated_at: string;
 }
 
@@ -44,6 +45,8 @@ export interface DailySummary {
   goals: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   consumed: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   remaining: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  calories_burned: number;
+  exercise_count: number;
   meals_count: number;
 }
 
@@ -186,6 +189,7 @@ export async function updateGoals(goals: {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  goal_weight_kg?: number;
 }): Promise<Goals> {
   return request<Goals>("/api/goals", {
     method: "PUT",
@@ -232,4 +236,60 @@ export async function getSavedMeals(query?: string): Promise<SavedMeal[]> {
 
 export async function deleteSavedMeal(id: number): Promise<void> {
   await request(`/api/saved-meals/${id}`, { method: "DELETE" });
+}
+
+export interface WeightLog {
+  id: number;
+  date: string;
+  weight_kg: number;
+  note: string | null;
+  created_at: string;
+}
+
+export async function logWeight(payload: {
+  date: string;
+  weight_kg: number;
+  note?: string;
+}): Promise<WeightLog> {
+  return request<WeightLog>("/api/weight", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getWeightLogs(start: string, end: string): Promise<WeightLog[]> {
+  return request<WeightLog[]>(`/api/weight?start=${start}&end=${end}`);
+}
+
+export async function deleteWeightLog(date: string): Promise<void> {
+  await request(`/api/weight/${date}`, { method: "DELETE" });
+}
+
+export interface Exercise {
+  id: number;
+  date: string;
+  name: string;
+  duration_min: number;
+  calories_burned: number;
+  created_at: string;
+}
+
+export async function logExercise(payload: {
+  date: string;
+  name: string;
+  duration_min: number;
+  calories_burned: number;
+}): Promise<Exercise> {
+  return request<Exercise>("/api/exercises", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getExercises(date: string): Promise<Exercise[]> {
+  return request<Exercise[]>(`/api/exercises?date=${date}`);
+}
+
+export async function deleteExercise(id: number): Promise<void> {
+  await request(`/api/exercises/${id}`, { method: "DELETE" });
 }

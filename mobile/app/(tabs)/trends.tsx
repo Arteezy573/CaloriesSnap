@@ -6,7 +6,8 @@ import Svg, { Polyline, Polygon, Line, Circle, Text as SvgText } from "react-nat
 import Card from "../../components/ui/Card";
 import Segmented from "../../components/ui/Segmented";
 import WeeklyReportCard from "../../components/WeeklyReportCard";
-import { HistoryEntry, getHistory, getGoals, Goals } from "../../services/api";
+import WeightCard from "../../components/WeightCard";
+import { HistoryEntry, getHistory, getGoals, Goals, WeightLog, getWeightLogs } from "../../services/api";
 import { localDateString } from "../../services/dates";
 import { computeStreak, StreakInfo } from "../../services/streak";
 import { colors, spacing, type } from "../../theme";
@@ -128,6 +129,7 @@ export default function TrendsScreen() {
   const [week, setWeek] = useState<HistoryEntry[]>([]);
   const [streak, setStreak] = useState<StreakInfo>(EMPTY_STREAK);
   const [goals, setGoals] = useState<Goals | null>(null);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [rangeIdx, setRangeIdx] = useState(0);
 
@@ -135,14 +137,16 @@ export default function TrendsScreen() {
     try {
       const range = RANGES[rangeIdx];
       const end = localDateString();
-      const [h, g, w] = await Promise.all([
+      const [h, g, w, wl] = await Promise.all([
         getHistory(daysAgo(range.days - 1), end),
         getGoals(),
         getHistory(daysAgo(6), end),
+        getWeightLogs(daysAgo(range.days - 1), end),
       ]);
       setHistory(h);
       setGoals(g);
       setWeek(w);
+      setWeightLogs(wl);
       setStreak(computeStreak(w, end));
     } catch (e: any) {
       Alert.alert("Error", "Could not load history: " + e.message);
@@ -182,6 +186,8 @@ export default function TrendsScreen() {
         <WeeklyReportCard week={week} goals={goals} streak={streak} />
         <Segmented options={RANGES.map((r) => r.label)} selectedIndex={rangeIdx} onChange={setRangeIdx} />
       </View>
+
+      <WeightCard logs={weightLogs} onLogged={loadData} />
 
       {history.length === 0 ? (
         <Text style={[type.footnote, { textAlign: "center", marginTop: 40 }]}>
