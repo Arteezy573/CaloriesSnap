@@ -11,6 +11,7 @@ A personal iPhone app that estimates calories and macros from food photos using 
 - **Logging Streak** — Tracks consecutive days logged; streak badge and best-streak shown on dashboard
 - **Editable Results** — Review and adjust AI estimates before saving
 - **Weekly Report Card** — Trends tab shows a weekly summary card alongside daily charts
+- **Weight Tracking** — Log body weight inline on the Trends tab; trend chart, net change, and weekly rate with a sticky kg/lb toggle
 - **User Authentication** — Email/password registration with JWT tokens, per-user data isolation
 - **Invite Code** — Registration requires an invite code to prevent unauthorized usage
 - **Rate Limiting** — Daily limit on AI analysis calls to control API costs
@@ -179,7 +180,7 @@ CaloriesSnap/
 │   │   ├── (tabs)/
 │   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list)
 │   │   │   ├── snap.tsx       # Camera + manual entry screen
-│   │   │   ├── trends.tsx     # Weekly report card + daily charts
+│   │   │   ├── trends.tsx     # Weekly report card + daily charts + weight tracking
 │   │   │   └── profile.tsx    # Goal settings + logout
 │   │   ├── onboarding.tsx     # Goal wizard (runs after first registration)
 │   │   └── _layout.tsx        # Root layout with auth guard
