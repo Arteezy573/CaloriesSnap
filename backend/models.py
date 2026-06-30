@@ -32,6 +32,7 @@ class GoalsRequest(BaseModel):
     protein_g: int = Field(ge=0)
     carbs_g: int = Field(ge=0)
     fat_g: int = Field(ge=0)
+    goal_weight_kg: Optional[float] = Field(default=None, gt=0)
 
 
 class GoalsResponse(BaseModel):
@@ -40,6 +41,7 @@ class GoalsResponse(BaseModel):
     protein_g: int
     carbs_g: int
     fat_g: int
+    goal_weight_kg: Optional[float] = None
     updated_at: str
 
 

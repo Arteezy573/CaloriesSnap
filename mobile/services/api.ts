@@ -36,6 +36,7 @@ export interface Goals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  goal_weight_kg: number | null;
   updated_at: string;
 }
 
@@ -188,6 +189,7 @@ export async function updateGoals(goals: {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  goal_weight_kg?: number;
 }): Promise<Goals> {
   return request<Goals>("/api/goals", {
     method: "PUT",

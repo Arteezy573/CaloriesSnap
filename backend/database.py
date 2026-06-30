@@ -27,6 +27,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             protein_g INTEGER NOT NULL DEFAULT 150,
             carbs_g INTEGER NOT NULL DEFAULT 250,
             fat_g INTEGER NOT NULL DEFAULT 65,
+            goal_weight_kg REAL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
@@ -105,6 +106,12 @@ def init_db(conn: sqlite3.Connection) -> None:
         );
     """)
 
+    # Migration: backfill goal_weight_kg on goals tables created before this column existed.
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(goals)").fetchall()}
+    if "goal_weight_kg" not in cols:
+        conn.execute("ALTER TABLE goals ADD COLUMN goal_weight_kg REAL")
+    conn.commit()
+
 
 def create_user(conn: sqlite3.Connection, email: str, password_hash: str) -> int | None:
     now = datetime.now(timezone.utc).isoformat()
@@ -137,7 +144,15 @@ def get_goals(conn: sqlite3.Connection, user_id: int) -> dict:
     return dict(row)
 
 
-def update_goals(conn: sqlite3.Connection, user_id: int, calories: int, protein_g: int, carbs_g: int, fat_g: int) -> dict:
+def update_goals(
+    conn: sqlite3.Connection,
+    user_id: int,
+    calories: int,
+    protein_g: int,
+    carbs_g: int,
+    fat_g: int,
+    goal_weight_kg: Optional[float] = None,
+) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     existing = conn.execute("SELECT id FROM goals WHERE user_id = ?", (user_id,)).fetchone()
     if existing:
@@ -150,6 +165,10 @@ def update_goals(conn: sqlite3.Connection, user_id: int, calories: int, protein_
             "INSERT INTO goals (user_id, calories, protein_g, carbs_g, fat_g, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, calories, protein_g, carbs_g, fat_g, now),
         )
+    # Patch semantics: only overwrite the target weight when one is supplied, so a
+    # macro-only update from the goals screen doesn't wipe a previously set goal weight.
+    if goal_weight_kg is not None:
+        conn.execute("UPDATE goals SET goal_weight_kg=? WHERE user_id=?", (goal_weight_kg, user_id))
     conn.commit()
     return get_goals(conn, user_id)
 

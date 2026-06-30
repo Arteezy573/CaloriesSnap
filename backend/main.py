@@ -138,7 +138,7 @@ def read_goals(conn=Depends(get_db_conn), user=Depends(get_current_user)):
 
 @app.put("/api/goals", response_model=GoalsResponse)
 def set_goals(req: GoalsRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
-    return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g)
+    return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g, req.goal_weight_kg)
 
 
 def check_rate_limit(conn, user_id: int):

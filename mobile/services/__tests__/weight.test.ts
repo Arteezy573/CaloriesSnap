@@ -1,4 +1,4 @@
-import { kgToLb, lbToKg, formatWeight, computeWeightTrend } from "../weight";
+import { kgToLb, lbToKg, formatWeight, computeWeightTrend, projectGoalWeight } from "../weight";
 import { WeightLog } from "../api";
 
 function log(date: string, weight_kg: number): WeightLog {
@@ -61,5 +61,53 @@ describe("computeWeightTrend", () => {
       log("2026-06-15", 80),
     ]);
     expect(t.ratePerWeek).toBeCloseTo(-1, 5);
+  });
+});
+
+describe("projectGoalWeight", () => {
+  it("marks the goal reached when within 0.1 kg, with today's eta", () => {
+    const p = projectGoalWeight(75.05, 75, -0.5, "2026-06-20");
+    expect(p.reached).toBe(true);
+    expect(p.onTrack).toBe(true);
+    expect(p.weeksToGoal).toBe(0);
+    expect(p.etaDate).toBe("2026-06-20");
+  });
+
+  it("projects an eta when losing toward a lower goal", () => {
+    // 5 kg to lose at -0.5 kg/week -> 10 weeks -> 70 days out
+    const p = projectGoalWeight(80, 75, -0.5, "2026-06-20");
+    expect(p.remainingKg).toBeCloseTo(-5, 5);
+    expect(p.onTrack).toBe(true);
+    expect(p.weeksToGoal).toBeCloseTo(10, 5);
+    expect(p.etaDate).toBe("2026-08-29");
+  });
+
+  it("projects an eta when gaining toward a higher goal", () => {
+    // 5 kg to gain at +0.25 kg/week -> 20 weeks
+    const p = projectGoalWeight(60, 65, 0.25, "2026-06-20");
+    expect(p.onTrack).toBe(true);
+    expect(p.weeksToGoal).toBeCloseTo(20, 5);
+  });
+
+  it("is not on track when the rate moves away from the goal", () => {
+    // needs to lose but is gaining
+    const p = projectGoalWeight(80, 75, 0.5, "2026-06-20");
+    expect(p.onTrack).toBe(false);
+    expect(p.weeksToGoal).toBeNull();
+    expect(p.etaDate).toBeNull();
+  });
+
+  it("is not on track when weight is flat (zero rate)", () => {
+    const p = projectGoalWeight(80, 75, 0, "2026-06-20");
+    expect(p.onTrack).toBe(false);
+    expect(p.weeksToGoal).toBeNull();
+    expect(p.etaDate).toBeNull();
+  });
+
+  it("returns null projection when the rate is unknown", () => {
+    const p = projectGoalWeight(80, 75, null, "2026-06-20");
+    expect(p.onTrack).toBe(false);
+    expect(p.weeksToGoal).toBeNull();
+    expect(p.etaDate).toBeNull();
   });
 });
