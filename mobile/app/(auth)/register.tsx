@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import { register } from "../../services/api";
-import { setToken, notifyAuthChange } from "../../services/auth";
-import { PENDING_ONBOARDING_KEY } from "../_layout";
 import { colors, spacing, type } from "../../theme";
 
 export default function RegisterScreen() {
@@ -32,10 +29,8 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const result = await register(email.trim(), password, inviteCode.trim());
-      await setToken(result.token);
-      await AsyncStorage.setItem(PENDING_ONBOARDING_KEY, "1");
-      notifyAuthChange(true);
+      await register(email.trim(), password, inviteCode.trim());
+      router.push({ pathname: "/(auth)/verify-email", params: { email: email.trim() } });
     } catch (e: any) {
       const msg = e.message.includes("409")
         ? "An account with this email already exists."

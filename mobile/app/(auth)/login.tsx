@@ -24,6 +24,10 @@ export default function LoginScreen() {
       await setToken(result.token);
       notifyAuthChange(true);
     } catch (e: any) {
+      if (e.message.includes("email_not_verified")) {
+        router.push({ pathname: "/(auth)/verify-email", params: { email: email.trim() } });
+        return;
+      }
       const msg = e.message.includes("401") ? "Invalid email or password." : "Login failed. Please try again.";
       Alert.alert("Error", msg);
     } finally {
