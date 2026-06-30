@@ -95,3 +95,25 @@ async def test_resend_verification_generic_for_unknown_email(client, sender):
     assert resp.status_code == 200
     assert "message" in resp.json()
     assert sender.sent == []  # nothing sent for unknown account
+
+
+@pytest.mark.asyncio
+async def test_login_blocked_when_unverified(client, sender):
+    await client.post("/api/register", json={
+        "email": "lb@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    resp = await client.post("/api/login", json={"email": "lb@test.com", "password": "secret1"})
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "email_not_verified"
+
+
+@pytest.mark.asyncio
+async def test_login_succeeds_after_verification(client, sender):
+    await client.post("/api/register", json={
+        "email": "ok@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    code = _last_code(sender)
+    await client.post("/api/verify-email", json={"email": "ok@test.com", "code": code})
+    resp = await client.post("/api/login", json={"email": "ok@test.com", "password": "secret1"})
+    assert resp.status_code == 200
+    assert "token" in resp.json()

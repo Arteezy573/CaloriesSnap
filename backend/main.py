@@ -170,10 +170,15 @@ def resend_verification(
 
 
 @app.post("/api/login", response_model=AuthResponse)
-def login(req: LoginRequest, conn=Depends(get_db_conn)):
+def login(req: LoginRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)):
     user = get_user_by_email(conn, req.email)
     if user is None or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user["email_verified"]:
+        code = issue_code(conn, user["id"], "verify")
+        if code is not None:
+            sender.send(req.email, VERIFY_SUBJECT, f"Your verification code is {code}")
+        raise HTTPException(status_code=403, detail="email_not_verified")
     token = create_token(user_id=user["id"], email=user["email"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
 

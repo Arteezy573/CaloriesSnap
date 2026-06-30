@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from auth import create_token, hash_password
 from main import app, get_db_conn, get_email_sender
-from database import get_db, init_db, create_user
+from database import get_db, init_db, create_user, set_email_verified
 from email_service import LoggingEmailSender
 
 
@@ -48,6 +48,7 @@ def test_user_data(test_app, db_path):
     conn = get_db(db_path)
     password_hash = hash_password("testpassword")
     user_id = create_user(conn, email="existing@test.com", password_hash=password_hash)
+    set_email_verified(conn, user_id)
     token = create_token(user_id=user_id, email="existing@test.com")
     conn.close()
     return {"user_id": user_id, "token": token, "email": "existing@test.com"}
