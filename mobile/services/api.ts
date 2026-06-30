@@ -233,3 +233,30 @@ export async function getSavedMeals(query?: string): Promise<SavedMeal[]> {
 export async function deleteSavedMeal(id: number): Promise<void> {
   await request(`/api/saved-meals/${id}`, { method: "DELETE" });
 }
+
+export interface WeightLog {
+  id: number;
+  date: string;
+  weight_kg: number;
+  note: string | null;
+  created_at: string;
+}
+
+export async function logWeight(payload: {
+  date: string;
+  weight_kg: number;
+  note?: string;
+}): Promise<WeightLog> {
+  return request<WeightLog>("/api/weight", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getWeightLogs(start: string, end: string): Promise<WeightLog[]> {
+  return request<WeightLog[]>(`/api/weight?start=${start}&end=${end}`);
+}
+
+export async function deleteWeightLog(date: string): Promise<void> {
+  await request(`/api/weight/${date}`, { method: "DELETE" });
+}

@@ -121,6 +121,20 @@ class HistoryEntry(BaseModel):
     meals_count: int
 
 
+class WeightLogRequest(BaseModel):
+    date: str = Field(min_length=1)
+    weight_kg: float = Field(gt=0)
+    note: Optional[str] = None
+
+
+class WeightLogResponse(BaseModel):
+    id: int
+    date: str
+    weight_kg: float
+    note: Optional[str] = None
+    created_at: str
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=1)
     password: str = Field(min_length=6)

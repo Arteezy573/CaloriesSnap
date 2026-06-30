@@ -106,7 +106,7 @@ Scan the QR code with your iPhone camera to open in Expo Go.
 ### Running Tests
 
 ```bash
-# Backend (72 tests)
+# Backend (86 tests)
 cd backend
 python -m pytest -v
 
@@ -132,6 +132,9 @@ All endpoints except register and login require a `Bearer` token in the `Authori
 | GET | `/api/goals` | Yes | Get daily goals |
 | PUT | `/api/goals` | Yes | Update daily goals |
 | GET | `/api/summary?date=YYYY-MM-DD` | Yes | Get daily totals vs goals |
+| POST | `/api/weight` | Yes | Log body weight for a date (upserts) |
+| GET | `/api/weight?start=YYYY-MM-DD&end=YYYY-MM-DD` | Yes | Get body-weight logs in a date range |
+| DELETE | `/api/weight/{date}` | Yes | Delete a body-weight log |
 
 ## Environment Variables
 

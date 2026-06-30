@@ -81,6 +81,17 @@ def init_db(conn: sqlite3.Connection) -> None:
             called_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS weight_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            note TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, date),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
 
 
@@ -300,6 +311,52 @@ def get_history(conn: sqlite3.Connection, user_id: int, start: str, end: str) ->
         (user_id, start, end),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def log_weight(
+    conn: sqlite3.Connection,
+    user_id: int,
+    date: str,
+    weight_kg: float,
+    note: Optional[str] = None,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO weight_logs (user_id, date, weight_kg, note, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET weight_kg=excluded.weight_kg, note=excluded.note
+        """,
+        (user_id, date, weight_kg, note, now),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? AND date = ?", (user_id, date)
+    ).fetchone()
+    return dict(row)
+
+
+def get_weight_logs(conn: sqlite3.Connection, user_id: int, start: str, end: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date",
+        (user_id, start, end),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_latest_weight(conn: sqlite3.Connection, user_id: int) -> dict | None:
+    row = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_weight_log(conn: sqlite3.Connection, user_id: int, date: str) -> bool:
+    cursor = conn.execute(
+        "DELETE FROM weight_logs WHERE user_id = ? AND date = ?", (user_id, date)
+    )
+    conn.commit()
+    return cursor.rowcount > 0
 
 
 def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:

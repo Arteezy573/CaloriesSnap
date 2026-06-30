@@ -24,6 +24,7 @@ from database import (
     create_user,
     delete_meal,
     delete_saved_meal,
+    delete_weight_log,
     get_daily_summary,
     get_db,
     get_goals,
@@ -32,7 +33,9 @@ from database import (
     get_meals_by_date,
     get_saved_meals,
     get_user_by_email,
+    get_weight_logs,
     init_db,
+    log_weight,
     record_api_call,
     update_goals,
     update_meal,
@@ -52,6 +55,8 @@ from models import (
     SavedMealResponse,
     SummaryResponse,
     TextAnalyzeRequest,
+    WeightLogRequest,
+    WeightLogResponse,
 )
 
 _db_conn = None
@@ -240,6 +245,23 @@ def save_meal_for_later(req: SaveMealRequest, conn=Depends(get_db_conn), user=De
 @app.get("/api/saved-meals", response_model=list[SavedMealResponse])
 def list_saved_meals(q: str | None = None, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     return get_saved_meals(conn, user["id"], q)
+
+
+@app.post("/api/weight", response_model=WeightLogResponse, status_code=201)
+def upsert_weight(req: WeightLogRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return log_weight(conn, user["id"], req.date, req.weight_kg, req.note)
+
+
+@app.get("/api/weight", response_model=list[WeightLogResponse])
+def read_weight(start: str, end: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_weight_logs(conn, user["id"], start, end)
+
+
+@app.delete("/api/weight/{log_date}")
+def remove_weight(log_date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    if not delete_weight_log(conn, user["id"], log_date):
+        raise HTTPException(status_code=404, detail="Weight log not found")
+    return {"ok": True}
 
 
 @app.delete("/api/saved-meals/{saved_meal_id}")
