@@ -47,6 +47,12 @@ export default function LoginScreen() {
 
         <Button title="Log In" onPress={handleLogin} loading={loading} style={{ marginTop: spacing.s }} />
 
+        <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")} style={{ marginTop: spacing.l }}>
+          <Text style={styles.link}>
+            <Text style={styles.linkBold}>Forgot password?</Text>
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => router.push("/(auth)/register")} style={{ marginTop: spacing.xl }}>
           <Text style={styles.link}>
             Don't have an account? <Text style={styles.linkBold}>Sign up</Text>
