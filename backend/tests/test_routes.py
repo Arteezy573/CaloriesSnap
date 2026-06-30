@@ -8,8 +8,9 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from auth import create_token, hash_password
-from main import app, get_db_conn
+from main import app, get_db_conn, get_email_sender
 from database import get_db, init_db, create_user
+from email_service import LoggingEmailSender
 
 
 @pytest.fixture
@@ -24,11 +25,13 @@ def db_path():
 def test_app(db_path):
     conn = get_db(db_path)
     init_db(conn)
+    sender = LoggingEmailSender()
 
     def override_db():
         return conn
 
     app.dependency_overrides[get_db_conn] = override_db
+    app.dependency_overrides[get_email_sender] = lambda: sender
     yield app
     app.dependency_overrides.clear()
     conn.close()
@@ -319,13 +322,14 @@ def test_resize_image_keeps_detail_up_to_1568():
 async def test_register_success(client):
     resp = await client.post("/api/register", json={
         "email": "newuser@test.com",
-        "password": "securepass123",
+        "password": "password123",
         "invite_code": "caloriessnap2026",
     })
     assert resp.status_code == 201
     data = resp.json()
-    assert "token" in data
-    assert data["user"]["email"] == "newuser@test.com"
+    assert data["email"] == "newuser@test.com"
+    assert data["verification_required"] is True
+    assert "token" not in data
 
 
 @pytest.mark.asyncio
