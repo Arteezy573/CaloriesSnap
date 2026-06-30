@@ -81,6 +81,35 @@ async def test_update_goals(client, auth_header):
 
 
 @pytest.mark.asyncio
+async def test_update_goals_with_goal_weight(client, auth_header):
+    resp = await client.put("/api/goals", json={
+        "calories": 1800,
+        "protein_g": 120,
+        "carbs_g": 200,
+        "fat_g": 50,
+        "goal_weight_kg": 72.5,
+    }, headers=auth_header)
+    assert resp.status_code == 200
+    assert resp.json()["goal_weight_kg"] == 72.5
+
+    resp2 = await client.get("/api/goals", headers=auth_header)
+    assert resp2.json()["goal_weight_kg"] == 72.5
+
+
+@pytest.mark.asyncio
+async def test_update_goals_omitting_goal_weight_preserves_it(client, auth_header):
+    await client.put("/api/goals", json={
+        "calories": 1800, "protein_g": 120, "carbs_g": 200, "fat_g": 50, "goal_weight_kg": 65.0,
+    }, headers=auth_header)
+    # A macro-only update (no goal_weight_kg) must not wipe the saved goal weight.
+    await client.put("/api/goals", json={
+        "calories": 2000, "protein_g": 150, "carbs_g": 250, "fat_g": 60,
+    }, headers=auth_header)
+    resp = await client.get("/api/goals", headers=auth_header)
+    assert resp.json()["goal_weight_kg"] == 65.0
+
+
+@pytest.mark.asyncio
 async def test_update_goals_invalid(client, auth_header):
     resp = await client.put("/api/goals", json={
         "calories": -100,

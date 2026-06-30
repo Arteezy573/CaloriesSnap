@@ -11,6 +11,9 @@ A personal iPhone app that estimates calories and macros from food photos using 
 - **Logging Streak** — Tracks consecutive days logged; streak badge and best-streak shown on dashboard
 - **Editable Results** — Review and adjust AI estimates before saving
 - **Weekly Report Card** — Trends tab shows a weekly summary card alongside daily charts
+- **Weight Tracking** — Log body weight inline on the Trends tab; trend chart, net change, and weekly rate with a sticky kg/lb toggle
+- **Goal Weight & Projection** — Set a target body weight; the app projects when you'll reach it from your current weight at your recent weekly rate (and flags when the trend is moving the wrong way)
+- **Exercise Logging** — Log workouts from the dashboard via activity presets (walking, running, cycling, strength, …); calories burned are estimated from a MET formula personalized by your latest body weight and adjustable by duration. Burned calories are "eaten back" into the daily budget (energy-balance model) and shown on the calorie ring
 - **User Authentication** — Email/password registration with JWT tokens, per-user data isolation
 - **Invite Code** — Registration requires an invite code to prevent unauthorized usage
 - **Rate Limiting** — Daily limit on AI analysis calls to control API costs
@@ -106,11 +109,11 @@ Scan the QR code with your iPhone camera to open in Expo Go.
 ### Running Tests
 
 ```bash
-# Backend (72 tests)
+# Backend (105 tests)
 cd backend
 python -m pytest -v
 
-# Mobile (13 tests)
+# Mobile (36 tests)
 cd mobile
 npm test
 ```
@@ -130,8 +133,14 @@ All endpoints except register and login require a `Bearer` token in the `Authori
 | PUT | `/api/meals/{id}` | Yes | Edit a meal's foods/notes |
 | DELETE | `/api/meals/{id}` | Yes | Delete a meal |
 | GET | `/api/goals` | Yes | Get daily goals |
-| PUT | `/api/goals` | Yes | Update daily goals |
+| PUT | `/api/goals` | Yes | Update daily goals (optional `goal_weight_kg` target body weight; omitting it preserves the saved value) |
 | GET | `/api/summary?date=YYYY-MM-DD` | Yes | Get daily totals vs goals |
+| POST | `/api/weight` | Yes | Log body weight for a date (upserts) |
+| GET | `/api/weight?start=YYYY-MM-DD&end=YYYY-MM-DD` | Yes | Get body-weight logs in a date range |
+| DELETE | `/api/weight/{date}` | Yes | Delete a body-weight log |
+| POST | `/api/exercises` | Yes | Log an exercise (name, duration, calories burned) |
+| GET | `/api/exercises?date=YYYY-MM-DD` | Yes | Get exercises for a date |
+| DELETE | `/api/exercises/{id}` | Yes | Delete an exercise |
 
 ## Environment Variables
 
@@ -167,16 +176,16 @@ CaloriesSnap/
 │   ├── startup.sh          # Gunicorn startup for Azure
 │   ├── requirements.txt
 │   ├── .env                # Local env vars (not committed)
-│   └── tests/              # Backend tests (72 tests)
+│   └── tests/              # Backend tests (105 tests)
 ├── mobile/
 │   ├── app/
 │   │   ├── (auth)/
 │   │   │   ├── login.tsx      # Login screen
 │   │   │   └── register.tsx   # Registration screen
 │   │   ├── (tabs)/
-│   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list)
+│   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list, exercise log)
 │   │   │   ├── snap.tsx       # Camera + manual entry screen
-│   │   │   ├── trends.tsx     # Weekly report card + daily charts
+│   │   │   ├── trends.tsx     # Weekly report card + daily charts + weight tracking
 │   │   │   └── profile.tsx    # Goal settings + logout
 │   │   ├── onboarding.tsx     # Goal wizard (runs after first registration)
 │   │   └── _layout.tsx        # Root layout with auth guard
@@ -188,11 +197,15 @@ CaloriesSnap/
 │   │   ├── MealRow.tsx        # Meal list row (replaces MealCard)
 │   │   ├── StreakBadge.tsx    # Current/best streak display
 │   │   ├── WeeklyReportCard.tsx # Weekly summary card
+│   │   ├── WeightCard.tsx     # Weight trend chart + inline logging (Trends)
+│   │   ├── ExerciseCard.tsx   # Exercise presets + duration logging (Dashboard)
 │   │   └── ui/                # Base kit: Button, Card, Input, Segmented, Toast
 │   ├── services/
 │   │   ├── api.ts             # Typed API client
 │   │   ├── auth.ts            # Token storage (expo-secure-store)
 │   │   ├── streak.ts          # Logging streak calculations
+│   │   ├── weight.ts          # kg/lb conversion + weight-trend math
+│   │   ├── exercise.ts        # MET calorie-burn estimate + presets
 │   │   └── tdee.ts            # TDEE/BMR calculations (Mifflin-St Jeor)
 │   └── .env                   # API URL (not committed)
 └── docs/                   # Design specs and implementation plans

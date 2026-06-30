@@ -19,20 +19,26 @@ from analyzer import analyze_image, analyze_text
 from auth import get_current_user, hash_password, verify_password, create_token
 from database import (
     count_api_calls_today,
+    create_exercise,
     create_meal,
     create_saved_meal,
     create_user,
+    delete_exercise,
     delete_meal,
     delete_saved_meal,
+    delete_weight_log,
     get_daily_summary,
     get_db,
+    get_exercises_by_date,
     get_goals,
     get_history,
     get_meal,
     get_meals_by_date,
     get_saved_meals,
     get_user_by_email,
+    get_weight_logs,
     init_db,
+    log_weight,
     record_api_call,
     update_goals,
     update_meal,
@@ -40,6 +46,8 @@ from database import (
 from models import (
     AnalyzeResponse,
     AuthResponse,
+    ExerciseRequest,
+    ExerciseResponse,
     GoalsRequest,
     GoalsResponse,
     HistoryEntry,
@@ -52,6 +60,8 @@ from models import (
     SavedMealResponse,
     SummaryResponse,
     TextAnalyzeRequest,
+    WeightLogRequest,
+    WeightLogResponse,
 )
 
 _db_conn = None
@@ -128,7 +138,7 @@ def read_goals(conn=Depends(get_db_conn), user=Depends(get_current_user)):
 
 @app.put("/api/goals", response_model=GoalsResponse)
 def set_goals(req: GoalsRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
-    return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g)
+    return update_goals(conn, user["id"], req.calories, req.protein_g, req.carbs_g, req.fat_g, req.goal_weight_kg)
 
 
 def check_rate_limit(conn, user_id: int):
@@ -240,6 +250,42 @@ def save_meal_for_later(req: SaveMealRequest, conn=Depends(get_db_conn), user=De
 @app.get("/api/saved-meals", response_model=list[SavedMealResponse])
 def list_saved_meals(q: str | None = None, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     return get_saved_meals(conn, user["id"], q)
+
+
+@app.post("/api/weight", response_model=WeightLogResponse, status_code=201)
+def upsert_weight(req: WeightLogRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return log_weight(conn, user["id"], req.date, req.weight_kg, req.note)
+
+
+@app.get("/api/weight", response_model=list[WeightLogResponse])
+def read_weight(start: str, end: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_weight_logs(conn, user["id"], start, end)
+
+
+@app.delete("/api/weight/{log_date}")
+def remove_weight(log_date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    if not delete_weight_log(conn, user["id"], log_date):
+        raise HTTPException(status_code=404, detail="Weight log not found")
+    return {"ok": True}
+
+
+@app.post("/api/exercises", response_model=ExerciseResponse, status_code=201)
+def create_new_exercise(req: ExerciseRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return create_exercise(
+        conn, user["id"], req.date, req.name, req.duration_min, req.calories_burned
+    )
+
+
+@app.get("/api/exercises", response_model=list[ExerciseResponse])
+def read_exercises(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_exercises_by_date(conn, user["id"], date)
+
+
+@app.delete("/api/exercises/{exercise_id}")
+def remove_exercise(exercise_id: int, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    if not delete_exercise(conn, user["id"], exercise_id):
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    return {"ok": True}
 
 
 @app.delete("/api/saved-meals/{saved_meal_id}")

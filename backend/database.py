@@ -27,6 +27,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             protein_g INTEGER NOT NULL DEFAULT 150,
             carbs_g INTEGER NOT NULL DEFAULT 250,
             fat_g INTEGER NOT NULL DEFAULT 65,
+            goal_weight_kg REAL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
@@ -81,7 +82,35 @@ def init_db(conn: sqlite3.Connection) -> None:
             called_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS weight_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            note TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, date),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            name TEXT NOT NULL,
+            duration_min INTEGER NOT NULL,
+            calories_burned INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
+
+    # Migration: backfill goal_weight_kg on goals tables created before this column existed.
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(goals)").fetchall()}
+    if "goal_weight_kg" not in cols:
+        conn.execute("ALTER TABLE goals ADD COLUMN goal_weight_kg REAL")
+    conn.commit()
 
 
 def create_user(conn: sqlite3.Connection, email: str, password_hash: str) -> int | None:
@@ -115,7 +144,15 @@ def get_goals(conn: sqlite3.Connection, user_id: int) -> dict:
     return dict(row)
 
 
-def update_goals(conn: sqlite3.Connection, user_id: int, calories: int, protein_g: int, carbs_g: int, fat_g: int) -> dict:
+def update_goals(
+    conn: sqlite3.Connection,
+    user_id: int,
+    calories: int,
+    protein_g: int,
+    carbs_g: int,
+    fat_g: int,
+    goal_weight_kg: Optional[float] = None,
+) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     existing = conn.execute("SELECT id FROM goals WHERE user_id = ?", (user_id,)).fetchone()
     if existing:
@@ -128,6 +165,10 @@ def update_goals(conn: sqlite3.Connection, user_id: int, calories: int, protein_
             "INSERT INTO goals (user_id, calories, protein_g, carbs_g, fat_g, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, calories, protein_g, carbs_g, fat_g, now),
         )
+    # Patch semantics: only overwrite the target weight when one is supplied, so a
+    # macro-only update from the goals screen doesn't wipe a previously set goal weight.
+    if goal_weight_kg is not None:
+        conn.execute("UPDATE goals SET goal_weight_kg=? WHERE user_id=?", (goal_weight_kg, user_id))
     conn.commit()
     return get_goals(conn, user_id)
 
@@ -302,6 +343,86 @@ def get_history(conn: sqlite3.Connection, user_id: int, start: str, end: str) ->
     return [dict(r) for r in rows]
 
 
+def log_weight(
+    conn: sqlite3.Connection,
+    user_id: int,
+    date: str,
+    weight_kg: float,
+    note: Optional[str] = None,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO weight_logs (user_id, date, weight_kg, note, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET weight_kg=excluded.weight_kg, note=excluded.note
+        """,
+        (user_id, date, weight_kg, note, now),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? AND date = ?", (user_id, date)
+    ).fetchone()
+    return dict(row)
+
+
+def get_weight_logs(conn: sqlite3.Connection, user_id: int, start: str, end: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date",
+        (user_id, start, end),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_latest_weight(conn: sqlite3.Connection, user_id: int) -> dict | None:
+    row = conn.execute(
+        "SELECT * FROM weight_logs WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_weight_log(conn: sqlite3.Connection, user_id: int, date: str) -> bool:
+    cursor = conn.execute(
+        "DELETE FROM weight_logs WHERE user_id = ? AND date = ?", (user_id, date)
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def create_exercise(
+    conn: sqlite3.Connection,
+    user_id: int,
+    date: str,
+    name: str,
+    duration_min: int,
+    calories_burned: int,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO exercises (user_id, date, name, duration_min, calories_burned, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, date, name, duration_min, calories_burned, now),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM exercises WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def get_exercises_by_date(conn: sqlite3.Connection, user_id: int, date: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM exercises WHERE user_id = ? AND date = ? ORDER BY created_at",
+        (user_id, date),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_exercise(conn: sqlite3.Connection, user_id: int, exercise_id: int) -> bool:
+    cursor = conn.execute(
+        "DELETE FROM exercises WHERE id = ? AND user_id = ?", (exercise_id, user_id)
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
 def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:
     goals = get_goals(conn, user_id)
     row = conn.execute(
@@ -324,6 +445,19 @@ def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict
     consumed_c = round(float(row["carbs_g"]), 1)
     consumed_f = round(float(row["fat_g"]), 1)
 
+    ex_row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(calories_burned), 0) as burned,
+            COUNT(*) as exercise_count
+        FROM exercises
+        WHERE user_id = ? AND date = ?
+        """,
+        (user_id, date),
+    ).fetchone()
+    calories_burned = int(ex_row["burned"])
+    exercise_count = int(ex_row["exercise_count"])
+
     return {
         "date": date,
         "goals": {
@@ -339,10 +473,13 @@ def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict
             "fat_g": consumed_f,
         },
         "remaining": {
-            "calories": goals["calories"] - consumed_cal,
+            # Exercise calories are "eaten back" into the day's budget (MyFitnessPal model)
+            "calories": goals["calories"] - consumed_cal + calories_burned,
             "protein_g": round(float(goals["protein_g"]) - consumed_p, 1),
             "carbs_g": round(float(goals["carbs_g"]) - consumed_c, 1),
             "fat_g": round(float(goals["fat_g"]) - consumed_f, 1),
         },
+        "calories_burned": calories_burned,
+        "exercise_count": exercise_count,
         "meals_count": int(row["meals_count"]),
     }

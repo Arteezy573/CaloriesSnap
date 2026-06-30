@@ -24,14 +24,18 @@ import MacroPill from "../../components/MacroPill";
 import StreakBadge from "../../components/StreakBadge";
 import MealRow from "../../components/MealRow";
 import FoodItemRow from "../../components/FoodItemRow";
+import ExerciseCard from "../../components/ExerciseCard";
 import {
   DailySummary,
+  Exercise,
   FoodItem,
   Meal,
   deleteMeal,
   getDailySummary,
+  getExercises,
   getHistory,
   getMeals,
+  getWeightLogs,
   updateMeal,
 } from "../../services/api";
 import { localDateString as toISO } from "../../services/dates";
@@ -65,6 +69,8 @@ export default function DashboardScreen() {
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null);
   const [streak, setStreak] = useState<StreakInfo>(EMPTY_STREAK);
   const [celebrating, setCelebrating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,13 +101,29 @@ export default function DashboardScreen() {
     }
   }
 
+  async function loadLatestWeight() {
+    const today = todayISO();
+    try {
+      // most recent weigh-in personalizes the exercise calorie-burn estimate
+      const logs = await getWeightLogs(shiftDate(today, -180), today);
+      if (logs.length > 0) {
+        const latest = logs.reduce((a, b) => (a.date >= b.date ? a : b));
+        setLatestWeightKg(latest.weight_kg);
+      }
+    } catch {
+      // estimate falls back to a default weight if this fails
+    }
+  }
+
   async function loadData(date?: string) {
     const d = date || selectedDate;
     try {
-      const [s, m] = await Promise.all([getDailySummary(d), getMeals(d)]);
+      const [s, m, ex] = await Promise.all([getDailySummary(d), getMeals(d), getExercises(d)]);
       setSummary(s);
       setMeals(m);
+      setExercises(ex);
       loadStreak();
+      loadLatestWeight();
     } catch (e: any) {
       Alert.alert("Error", "Could not load data: " + e.message);
     } finally {
@@ -224,7 +246,10 @@ export default function DashboardScreen() {
       <Card style={styles.ringCard}>
         <CalorieRing consumed={summary.consumed.calories} goal={summary.goals.calories} />
         <Text style={styles.ringCaption}>
-          {summary.consumed.calories} eaten · {summary.goals.calories} goal
+          {summary.consumed.calories} eaten
+          {summary.calories_burned > 0 ? ` · ${summary.calories_burned} burned` : ""}
+          {" · "}
+          {summary.goals.calories} goal
         </Text>
         <View style={styles.macroRow}>
           <MacroPill label="Protein" current={summary.consumed.protein_g} goal={summary.goals.protein_g} color={colors.protein} />
@@ -255,6 +280,15 @@ export default function DashboardScreen() {
           ))}
         </Card>
       )}
+
+      <Text style={[type.label, styles.sectionLabel]}>EXERCISE</Text>
+      <ExerciseCard
+        exercises={exercises}
+        date={selectedDate}
+        bodyWeightKg={latestWeightKg}
+        editable={isToday}
+        onChanged={loadData}
+      />
 
       <Modal visible={editingMeal !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
