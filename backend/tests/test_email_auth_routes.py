@@ -117,3 +117,14 @@ async def test_login_succeeds_after_verification(client, sender):
     resp = await client.post("/api/login", json={"email": "ok@test.com", "password": "secret1"})
     assert resp.status_code == 200
     assert "token" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_login_wrong_password_unverified_still_401(client, sender):
+    await client.post("/api/register", json={
+        "email": "wp@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    # user exists but is NOT verified; wrong password must still yield 401, not 403
+    resp = await client.post("/api/login", json={"email": "wp@test.com", "password": "WRONG"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid email or password"
