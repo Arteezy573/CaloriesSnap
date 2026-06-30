@@ -12,7 +12,7 @@ A personal iPhone app that estimates calories and macros from food photos using 
 - **Editable Results** — Review and adjust AI estimates before saving
 - **Weekly Report Card** — Trends tab shows a weekly summary card alongside daily charts
 - **Weight Tracking** — Log body weight inline on the Trends tab; trend chart, net change, and weekly rate with a sticky kg/lb toggle
-- **Exercise Logging** — Log workouts with calories burned; exercise calories are "eaten back" into the daily budget (energy-balance model), and the daily summary reports calories burned and exercise count
+- **Exercise Logging** — Log workouts from the dashboard via activity presets (walking, running, cycling, strength, …); calories burned are estimated from a MET formula personalized by your latest body weight and adjustable by duration. Burned calories are "eaten back" into the daily budget (energy-balance model) and shown on the calorie ring
 - **User Authentication** — Email/password registration with JWT tokens, per-user data isolation
 - **Invite Code** — Registration requires an invite code to prevent unauthorized usage
 - **Rate Limiting** — Daily limit on AI analysis calls to control API costs
@@ -112,7 +112,7 @@ Scan the QR code with your iPhone camera to open in Expo Go.
 cd backend
 python -m pytest -v
 
-# Mobile (22 tests)
+# Mobile (30 tests)
 cd mobile
 npm test
 ```
@@ -182,7 +182,7 @@ CaloriesSnap/
 │   │   │   ├── login.tsx      # Login screen
 │   │   │   └── register.tsx   # Registration screen
 │   │   ├── (tabs)/
-│   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list)
+│   │   │   ├── index.tsx      # Dashboard (ring, streak, meal list, exercise log)
 │   │   │   ├── snap.tsx       # Camera + manual entry screen
 │   │   │   ├── trends.tsx     # Weekly report card + daily charts + weight tracking
 │   │   │   └── profile.tsx    # Goal settings + logout
@@ -196,11 +196,15 @@ CaloriesSnap/
 │   │   ├── MealRow.tsx        # Meal list row (replaces MealCard)
 │   │   ├── StreakBadge.tsx    # Current/best streak display
 │   │   ├── WeeklyReportCard.tsx # Weekly summary card
+│   │   ├── WeightCard.tsx     # Weight trend chart + inline logging (Trends)
+│   │   ├── ExerciseCard.tsx   # Exercise presets + duration logging (Dashboard)
 │   │   └── ui/                # Base kit: Button, Card, Input, Segmented, Toast
 │   ├── services/
 │   │   ├── api.ts             # Typed API client
 │   │   ├── auth.ts            # Token storage (expo-secure-store)
 │   │   ├── streak.ts          # Logging streak calculations
+│   │   ├── weight.ts          # kg/lb conversion + weight-trend math
+│   │   ├── exercise.ts        # MET calorie-burn estimate + presets
 │   │   └── tdee.ts            # TDEE/BMR calculations (Mifflin-St Jeor)
 │   └── .env                   # API URL (not committed)
 └── docs/                   # Design specs and implementation plans
