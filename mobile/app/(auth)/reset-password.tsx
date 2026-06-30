@@ -31,8 +31,9 @@ export default function ResetPasswordScreen() {
     setLoading(true);
     try {
       await resetPassword(String(email), code, password);
-      Alert.alert("Success", "Your password has been updated. Please log in.");
-      router.replace("/(auth)/login");
+      Alert.alert("Success", "Your password has been updated. Please log in.", [
+        { text: "OK", onPress: () => router.replace("/(auth)/login") },
+      ]);
     } catch {
       Alert.alert("Error", "Invalid or expired code. Please try again.");
     } finally {
@@ -68,7 +69,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: "center", padding: spacing.xl },
   logo: { fontSize: 56, textAlign: "center", marginBottom: spacing.s },
   title: { textAlign: "center" },
-  subtitle: { textAlign: "center", marginTop: 4, marginBottom: spacing.xxl },
+  subtitle: { textAlign: "center", marginTop: spacing.xs, marginBottom: spacing.xxl },
   link: { color: colors.textSecondary, textAlign: "center", fontSize: 14 },
   linkBold: { color: colors.accent, fontWeight: "700" },
 });

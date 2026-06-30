@@ -1,7 +1,7 @@
 // mobile/app/(auth)/verify-email.tsx
 import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
@@ -11,7 +11,6 @@ import { PENDING_ONBOARDING_KEY } from "../_layout";
 import { colors, spacing, type } from "../../theme";
 
 export default function VerifyEmailScreen() {
-  const router = useRouter();
   const { email } = useLocalSearchParams<{ email: string }>();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
