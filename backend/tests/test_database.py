@@ -265,3 +265,51 @@ def test_update_user_password(db):
     uid = create_user(db, email="pw@test.com", password_hash="old")
     update_user_password(db, uid, "newhash")
     assert get_user_by_email(db, "pw@test.com")["password_hash"] == "newhash"
+
+
+import os
+import tempfile
+
+
+def test_migration_grandfathers_existing_users():
+    """Legacy DB: pre-existing users get email_verified=1; new users keep DEFAULT 0."""
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        from database import get_db, init_db, create_user, get_user_by_email
+
+        conn = get_db(path)
+
+        # Simulate legacy schema: users table WITHOUT email_verified column.
+        conn.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            ("legacy@example.com", "oldhash", "2024-01-01T00:00:00+00:00"),
+        )
+        conn.commit()
+
+        # Run init_db — should add the email_verified column and grandfather the
+        # existing row to verified=1 while leaving future rows at the DEFAULT 0.
+        init_db(conn)
+
+        legacy_user = get_user_by_email(conn, "legacy@example.com")
+        assert legacy_user["email_verified"] == 1, (
+            "Pre-existing user should be grandfathered as verified"
+        )
+
+        new_uid = create_user(conn, email="new@example.com", password_hash="newhash")
+        new_user = get_user_by_email(conn, "new@example.com")
+        assert new_user["email_verified"] == 0, (
+            "User created after migration should default to unverified"
+        )
+
+        conn.close()
+    finally:
+        os.unlink(path)
