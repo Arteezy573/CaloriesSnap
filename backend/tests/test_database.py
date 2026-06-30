@@ -201,3 +201,67 @@ def test_get_user_by_email(db):
 def test_get_user_by_email_not_found(db):
     user = get_user_by_email(db, "nobody@example.com")
     assert user is None
+
+
+from datetime import datetime, timezone, timedelta
+
+from database import (
+    create_user,
+    create_email_code,
+    get_latest_email_code,
+    increment_email_code_attempts,
+    consume_email_code,
+    set_email_verified,
+    update_user_password,
+    get_user_by_email,
+)
+
+
+def _future():
+    return (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+
+
+def test_new_user_is_unverified_by_default(db):
+    create_user(db, email="new@test.com", password_hash="h")
+    user = get_user_by_email(db, "new@test.com")
+    assert user["email_verified"] == 0
+
+
+def test_set_email_verified(db):
+    uid = create_user(db, email="v@test.com", password_hash="h")
+    set_email_verified(db, uid)
+    assert get_user_by_email(db, "v@test.com")["email_verified"] == 1
+
+
+def test_create_and_get_latest_email_code(db):
+    uid = create_user(db, email="c@test.com", password_hash="h")
+    create_email_code(db, uid, "verify", "hash1", _future())
+    code_id = create_email_code(db, uid, "verify", "hash2", _future())
+    latest = get_latest_email_code(db, uid, "verify")
+    assert latest["id"] == code_id
+    assert latest["code_hash"] == "hash2"
+    assert latest["attempts"] == 0
+    assert latest["consumed_at"] is None
+
+
+def test_get_latest_email_code_scoped_by_purpose(db):
+    uid = create_user(db, email="p@test.com", password_hash="h")
+    create_email_code(db, uid, "verify", "vh", _future())
+    create_email_code(db, uid, "reset", "rh", _future())
+    assert get_latest_email_code(db, uid, "reset")["code_hash"] == "rh"
+
+
+def test_increment_and_consume_email_code(db):
+    uid = create_user(db, email="i@test.com", password_hash="h")
+    code_id = create_email_code(db, uid, "verify", "hash", _future())
+    increment_email_code_attempts(db, code_id)
+    increment_email_code_attempts(db, code_id)
+    assert get_latest_email_code(db, uid, "verify")["attempts"] == 2
+    consume_email_code(db, code_id)
+    assert get_latest_email_code(db, uid, "verify")["consumed_at"] is not None
+
+
+def test_update_user_password(db):
+    uid = create_user(db, email="pw@test.com", password_hash="old")
+    update_user_password(db, uid, "newhash")
+    assert get_user_by_email(db, "pw@test.com")["password_hash"] == "newhash"
