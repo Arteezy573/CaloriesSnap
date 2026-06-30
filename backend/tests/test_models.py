@@ -78,3 +78,39 @@ def test_meal_request_rejects_bad_source():
 def test_text_analyze_request():
     r = TextAnalyzeRequest(food_description="1 large apple")
     assert r.food_description == "1 large apple"
+
+
+from models import (
+    VerifyEmailRequest,
+    ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    RegisterPendingResponse,
+    GenericMessageResponse,
+)
+import pytest
+from pydantic import ValidationError
+
+
+def test_verify_email_normalizes_email():
+    req = VerifyEmailRequest(email="  Foo@Bar.COM ", code="123456")
+    assert req.email == "foo@bar.com"
+
+
+def test_verify_email_requires_six_digit_code():
+    with pytest.raises(ValidationError):
+        VerifyEmailRequest(email="a@b.com", code="123")
+
+
+def test_reset_password_requires_min_length_password():
+    with pytest.raises(ValidationError):
+        ResetPasswordRequest(email="a@b.com", code="123456", new_password="123")
+
+
+def test_register_pending_response_shape():
+    r = RegisterPendingResponse(email="a@b.com", verification_required=True)
+    assert r.verification_required is True
+
+
+def test_generic_message_response_shape():
+    assert GenericMessageResponse(message="ok").message == "ok"
