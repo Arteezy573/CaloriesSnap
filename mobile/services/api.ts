@@ -86,7 +86,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return resp.json();
 }
 
-export async function register(email: string, password: string, inviteCode: string): Promise<AuthResponse> {
+export async function register(
+  email: string,
+  password: string,
+  inviteCode: string
+): Promise<{ email: string; verification_required: boolean }> {
   const resp = await fetch(`${API_BASE_URL}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -104,6 +108,62 @@ export async function login(email: string, password: string): Promise<AuthRespon
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function verifyEmail(email: string, code: string): Promise<AuthResponse> {
+  const resp = await fetch(`${API_BASE_URL}/api/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function resendVerification(email: string): Promise<{ message: string }> {
+  const resp = await fetch(`${API_BASE_URL}/api/resend-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const resp = await fetch(`${API_BASE_URL}/api/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  const resp = await fetch(`${API_BASE_URL}/api/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, new_password: newPassword }),
   });
   if (!resp.ok) {
     const text = await resp.text();
