@@ -96,6 +96,8 @@ class SummaryResponse(BaseModel):
     goals: MacroTotals
     consumed: MacroTotals
     remaining: MacroTotals
+    calories_burned: int = 0
+    exercise_count: int = 0
     meals_count: int
 
 
@@ -132,6 +134,22 @@ class WeightLogResponse(BaseModel):
     date: str
     weight_kg: float
     note: Optional[str] = None
+    created_at: str
+
+
+class ExerciseRequest(BaseModel):
+    date: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    duration_min: int = Field(ge=0)
+    calories_burned: int = Field(ge=0)
+
+
+class ExerciseResponse(BaseModel):
+    id: int
+    date: str
+    name: str
+    duration_min: int
+    calories_burned: int
     created_at: str
 
 

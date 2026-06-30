@@ -92,6 +92,17 @@ def init_db(conn: sqlite3.Connection) -> None:
             UNIQUE(user_id, date),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            name TEXT NOT NULL,
+            duration_min INTEGER NOT NULL,
+            calories_burned INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
 
 
@@ -359,6 +370,40 @@ def delete_weight_log(conn: sqlite3.Connection, user_id: int, date: str) -> bool
     return cursor.rowcount > 0
 
 
+def create_exercise(
+    conn: sqlite3.Connection,
+    user_id: int,
+    date: str,
+    name: str,
+    duration_min: int,
+    calories_burned: int,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO exercises (user_id, date, name, duration_min, calories_burned, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, date, name, duration_min, calories_burned, now),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM exercises WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def get_exercises_by_date(conn: sqlite3.Connection, user_id: int, date: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM exercises WHERE user_id = ? AND date = ? ORDER BY created_at",
+        (user_id, date),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_exercise(conn: sqlite3.Connection, user_id: int, exercise_id: int) -> bool:
+    cursor = conn.execute(
+        "DELETE FROM exercises WHERE id = ? AND user_id = ?", (exercise_id, user_id)
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
 def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict:
     goals = get_goals(conn, user_id)
     row = conn.execute(
@@ -381,6 +426,19 @@ def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict
     consumed_c = round(float(row["carbs_g"]), 1)
     consumed_f = round(float(row["fat_g"]), 1)
 
+    ex_row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(calories_burned), 0) as burned,
+            COUNT(*) as exercise_count
+        FROM exercises
+        WHERE user_id = ? AND date = ?
+        """,
+        (user_id, date),
+    ).fetchone()
+    calories_burned = int(ex_row["burned"])
+    exercise_count = int(ex_row["exercise_count"])
+
     return {
         "date": date,
         "goals": {
@@ -396,10 +454,13 @@ def get_daily_summary(conn: sqlite3.Connection, user_id: int, date: str) -> dict
             "fat_g": consumed_f,
         },
         "remaining": {
-            "calories": goals["calories"] - consumed_cal,
+            # Exercise calories are "eaten back" into the day's budget (MyFitnessPal model)
+            "calories": goals["calories"] - consumed_cal + calories_burned,
             "protein_g": round(float(goals["protein_g"]) - consumed_p, 1),
             "carbs_g": round(float(goals["carbs_g"]) - consumed_c, 1),
             "fat_g": round(float(goals["fat_g"]) - consumed_f, 1),
         },
+        "calories_burned": calories_burned,
+        "exercise_count": exercise_count,
         "meals_count": int(row["meals_count"]),
     }

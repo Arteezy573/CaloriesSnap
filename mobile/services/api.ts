@@ -44,6 +44,8 @@ export interface DailySummary {
   goals: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   consumed: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   remaining: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  calories_burned: number;
+  exercise_count: number;
   meals_count: number;
 }
 
@@ -259,4 +261,33 @@ export async function getWeightLogs(start: string, end: string): Promise<WeightL
 
 export async function deleteWeightLog(date: string): Promise<void> {
   await request(`/api/weight/${date}`, { method: "DELETE" });
+}
+
+export interface Exercise {
+  id: number;
+  date: string;
+  name: string;
+  duration_min: number;
+  calories_burned: number;
+  created_at: string;
+}
+
+export async function logExercise(payload: {
+  date: string;
+  name: string;
+  duration_min: number;
+  calories_burned: number;
+}): Promise<Exercise> {
+  return request<Exercise>("/api/exercises", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getExercises(date: string): Promise<Exercise[]> {
+  return request<Exercise[]>(`/api/exercises?date=${date}`);
+}
+
+export async function deleteExercise(id: number): Promise<void> {
+  await request(`/api/exercises/${id}`, { method: "DELETE" });
 }

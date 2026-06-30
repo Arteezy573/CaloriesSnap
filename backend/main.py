@@ -19,14 +19,17 @@ from analyzer import analyze_image, analyze_text
 from auth import get_current_user, hash_password, verify_password, create_token
 from database import (
     count_api_calls_today,
+    create_exercise,
     create_meal,
     create_saved_meal,
     create_user,
+    delete_exercise,
     delete_meal,
     delete_saved_meal,
     delete_weight_log,
     get_daily_summary,
     get_db,
+    get_exercises_by_date,
     get_goals,
     get_history,
     get_meal,
@@ -43,6 +46,8 @@ from database import (
 from models import (
     AnalyzeResponse,
     AuthResponse,
+    ExerciseRequest,
+    ExerciseResponse,
     GoalsRequest,
     GoalsResponse,
     HistoryEntry,
@@ -261,6 +266,25 @@ def read_weight(start: str, end: str, conn=Depends(get_db_conn), user=Depends(ge
 def remove_weight(log_date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
     if not delete_weight_log(conn, user["id"], log_date):
         raise HTTPException(status_code=404, detail="Weight log not found")
+    return {"ok": True}
+
+
+@app.post("/api/exercises", response_model=ExerciseResponse, status_code=201)
+def create_new_exercise(req: ExerciseRequest, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return create_exercise(
+        conn, user["id"], req.date, req.name, req.duration_min, req.calories_burned
+    )
+
+
+@app.get("/api/exercises", response_model=list[ExerciseResponse])
+def read_exercises(date: str, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    return get_exercises_by_date(conn, user["id"], date)
+
+
+@app.delete("/api/exercises/{exercise_id}")
+def remove_exercise(exercise_id: int, conn=Depends(get_db_conn), user=Depends(get_current_user)):
+    if not delete_exercise(conn, user["id"], exercise_id):
+        raise HTTPException(status_code=404, detail="Exercise not found")
     return {"ok": True}
 
 
