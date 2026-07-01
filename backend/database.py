@@ -17,6 +17,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            email_verified INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         );
 
@@ -104,12 +105,31 @@ def init_db(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS email_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            purpose TEXT NOT NULL CHECK(purpose IN ('verify', 'reset')),
+            code_hash TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            consumed_at TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
 
     # Migration: backfill goal_weight_kg on goals tables created before this column existed.
     cols = {row["name"] for row in conn.execute("PRAGMA table_info(goals)").fetchall()}
     if "goal_weight_kg" not in cols:
         conn.execute("ALTER TABLE goals ADD COLUMN goal_weight_kg REAL")
+
+    # Migration: add email_verified to users created before this column existed,
+    # grandfathering all existing users as verified so they are not locked out.
+    user_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "email_verified" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
+        conn.execute("UPDATE users SET email_verified = 1")
     conn.commit()
 
 
@@ -129,6 +149,52 @@ def create_user(conn: sqlite3.Connection, email: str, password_hash: str) -> int
 def get_user_by_email(conn: sqlite3.Connection, email: str) -> dict | None:
     row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     return dict(row) if row else None
+
+
+def set_email_verified(conn: sqlite3.Connection, user_id: int) -> None:
+    conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+    conn.commit()
+
+
+def update_user_password(conn: sqlite3.Connection, user_id: int, password_hash: str) -> None:
+    conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+    conn.commit()
+
+
+def create_email_code(
+    conn: sqlite3.Connection,
+    user_id: int,
+    purpose: str,
+    code_hash: str,
+    expires_at: str,
+) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO email_codes (user_id, purpose, code_hash, expires_at, attempts, created_at) "
+        "VALUES (?, ?, ?, ?, 0, ?)",
+        (user_id, purpose, code_hash, expires_at, now),
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def get_latest_email_code(conn: sqlite3.Connection, user_id: int, purpose: str) -> dict | None:
+    row = conn.execute(
+        "SELECT * FROM email_codes WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1",
+        (user_id, purpose),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def increment_email_code_attempts(conn: sqlite3.Connection, code_id: int) -> None:
+    conn.execute("UPDATE email_codes SET attempts = attempts + 1 WHERE id = ?", (code_id,))
+    conn.commit()
+
+
+def consume_email_code(conn: sqlite3.Connection, code_id: int) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute("UPDATE email_codes SET consumed_at = ? WHERE id = ?", (now, code_id))
+    conn.commit()
 
 
 def get_goals(conn: sqlite3.Connection, user_id: int) -> dict:

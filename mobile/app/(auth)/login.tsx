@@ -24,6 +24,10 @@ export default function LoginScreen() {
       await setToken(result.token);
       notifyAuthChange(true);
     } catch (e: any) {
+      if (e.message.includes("email_not_verified")) {
+        router.push({ pathname: "/(auth)/verify-email", params: { email: email.trim() } });
+        return;
+      }
       const msg = e.message.includes("401") ? "Invalid email or password." : "Login failed. Please try again.";
       Alert.alert("Error", msg);
     } finally {
@@ -42,6 +46,12 @@ export default function LoginScreen() {
         <Input placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
 
         <Button title="Log In" onPress={handleLogin} loading={loading} style={{ marginTop: spacing.s }} />
+
+        <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")} style={{ marginTop: spacing.l }}>
+          <Text style={styles.link}>
+            <Text style={styles.linkBold}>Forgot password?</Text>
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push("/(auth)/register")} style={{ marginTop: spacing.xl }}>
           <Text style={styles.link}>

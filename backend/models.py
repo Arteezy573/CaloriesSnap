@@ -186,3 +186,51 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+
+
+class VerifyEmailRequest(BaseModel):
+    email: str = Field(min_length=1)
+    code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(min_length=1)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=1)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str = Field(min_length=1)
+    code: str = Field(min_length=6, max_length=6)
+    new_password: str = Field(min_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+class RegisterPendingResponse(BaseModel):
+    email: str
+    verification_required: bool
+
+
+class GenericMessageResponse(BaseModel):
+    message: str

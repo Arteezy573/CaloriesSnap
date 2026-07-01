@@ -1,0 +1,197 @@
+import os
+import tempfile
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+from main import app, get_db_conn, get_email_sender
+from database import get_db, init_db, create_user, set_email_verified, get_user_by_email
+from auth import hash_password
+from email_service import LoggingEmailSender
+
+
+@pytest.fixture
+def db_path():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    yield path
+    os.unlink(path)
+
+
+@pytest.fixture
+def sender():
+    return LoggingEmailSender()
+
+
+@pytest.fixture
+def test_app(db_path, sender):
+    conn = get_db(db_path)
+    init_db(conn)
+    app.dependency_overrides[get_db_conn] = lambda: conn
+    app.dependency_overrides[get_email_sender] = lambda: sender
+    yield app
+    app.dependency_overrides.clear()
+    conn.close()
+
+
+@pytest_asyncio.fixture
+async def client(test_app):
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as c:
+        yield c
+
+
+def _last_code(sender):
+    # body is e.g. "Your verification code is 123456"
+    return sender.sent[-1]["body"].split()[-1]
+
+
+@pytest.mark.asyncio
+async def test_register_sends_code_and_returns_no_token(client, sender):
+    resp = await client.post("/api/register", json={
+        "email": "new@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data == {"email": "new@test.com", "verification_required": True}
+    assert "token" not in data
+    assert len(sender.sent) == 1
+    assert len(_last_code(sender)) == 6
+
+
+@pytest.mark.asyncio
+async def test_verify_email_happy_path_returns_token(client, sender):
+    await client.post("/api/register", json={
+        "email": "v@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    code = _last_code(sender)
+    resp = await client.post("/api/verify-email", json={"email": "v@test.com", "code": code})
+    assert resp.status_code == 200
+    assert "token" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_verify_email_wrong_code_400(client, sender):
+    await client.post("/api/register", json={
+        "email": "w@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    resp = await client.post("/api/verify-email", json={"email": "w@test.com", "code": "000000"})
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_verify_email_already_verified_409(client, db_path):
+    conn = get_db(db_path)
+    uid = create_user(conn, email="av@test.com", password_hash=hash_password("secret1"))
+    set_email_verified(conn, uid)
+    conn.close()
+    resp = await client.post("/api/verify-email", json={"email": "av@test.com", "code": "123456"})
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_generic_for_unknown_email(client, sender):
+    resp = await client.post("/api/resend-verification", json={"email": "nobody@test.com"})
+    assert resp.status_code == 200
+    assert "message" in resp.json()
+    assert sender.sent == []  # nothing sent for unknown account
+
+
+@pytest.mark.asyncio
+async def test_login_blocked_when_unverified(client, sender):
+    await client.post("/api/register", json={
+        "email": "lb@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    resp = await client.post("/api/login", json={"email": "lb@test.com", "password": "secret1"})
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "email_not_verified"
+
+
+@pytest.mark.asyncio
+async def test_login_succeeds_after_verification(client, sender):
+    await client.post("/api/register", json={
+        "email": "ok@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    code = _last_code(sender)
+    await client.post("/api/verify-email", json={"email": "ok@test.com", "code": code})
+    resp = await client.post("/api/login", json={"email": "ok@test.com", "password": "secret1"})
+    assert resp.status_code == 200
+    assert "token" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_login_wrong_password_unverified_still_401(client, sender):
+    await client.post("/api/register", json={
+        "email": "wp@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+    })
+    # user exists but is NOT verified; wrong password must still yield 401, not 403
+    resp = await client.post("/api/login", json={"email": "wp@test.com", "password": "WRONG"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid email or password"
+
+
+async def _make_verified_user(client, sender, email="reset@test.com", password="secret1"):
+    await client.post("/api/register", json={
+        "email": email, "password": password, "invite_code": "caloriessnap2026",
+    })
+    code = _last_code(sender)
+    await client.post("/api/verify-email", json={"email": email, "code": code})
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_generic_for_unknown_email(client, sender):
+    resp = await client.post("/api/forgot-password", json={"email": "ghost@test.com"})
+    assert resp.status_code == 200
+    assert "message" in resp.json()
+    assert sender.sent == []
+
+
+@pytest.mark.asyncio
+async def test_reset_password_happy_path(client, sender):
+    await _make_verified_user(client, sender)
+    await client.post("/api/forgot-password", json={"email": "reset@test.com"})
+    code = _last_code(sender)
+    resp = await client.post("/api/reset-password", json={
+        "email": "reset@test.com", "code": code, "new_password": "brandnew1",
+    })
+    assert resp.status_code == 200
+    # new password works, old one does not
+    ok = await client.post("/api/login", json={"email": "reset@test.com", "password": "brandnew1"})
+    assert ok.status_code == 200
+    bad = await client.post("/api/login", json={"email": "reset@test.com", "password": "secret1"})
+    assert bad.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_reset_password_wrong_code_400(client, sender):
+    await _make_verified_user(client, sender, email="r2@test.com")
+    await client.post("/api/forgot-password", json={"email": "r2@test.com"})
+    resp = await client.post("/api/reset-password", json={
+        "email": "r2@test.com", "code": "000000", "new_password": "brandnew1",
+    })
+    assert resp.status_code == 400
+
+
+class _RaisingSender:
+    def send(self, to, subject, body):
+        raise RuntimeError("email provider down")
+
+
+@pytest.mark.asyncio
+async def test_register_succeeds_when_email_send_fails(db_path):
+    conn = get_db(db_path)
+    init_db(conn)
+    app.dependency_overrides[get_db_conn] = lambda: conn
+    app.dependency_overrides[get_email_sender] = lambda: _RaisingSender()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/api/register", json={
+                "email": "down@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+            })
+        assert resp.status_code == 201
+        assert resp.json()["verification_required"] is True
+        # the user row was still created despite the email failure
+        assert get_user_by_email(conn, "down@test.com") is not None
+    finally:
+        app.dependency_overrides.clear()
+        conn.close()

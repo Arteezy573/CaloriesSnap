@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from PIL import Image as PILImage
 
 from analyzer import analyze_image, analyze_text
 from auth import get_current_user, hash_password, verify_password, create_token
+from email_service import build_email_sender
+from codes import issue_code, verify_code
 from database import (
     count_api_calls_today,
     create_exercise,
@@ -42,6 +45,8 @@ from database import (
     record_api_call,
     update_goals,
     update_meal,
+    set_email_verified,
+    update_user_password,
 )
 from models import (
     AnalyzeResponse,
@@ -62,10 +67,17 @@ from models import (
     TextAnalyzeRequest,
     WeightLogRequest,
     WeightLogResponse,
+    VerifyEmailRequest,
+    ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    RegisterPendingResponse,
+    GenericMessageResponse,
 )
 
 _db_conn = None
 anthropic_client = None
+_email_sender = None
 
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "uploads"))
 MAX_IMAGE_DIMENSION = 1568
@@ -75,6 +87,10 @@ DAILY_ANALYZE_LIMIT = int(os.environ.get("DAILY_ANALYZE_LIMIT", "20"))
 
 def get_db_conn():
     return _db_conn
+
+
+def get_email_sender():
+    return _email_sender
 
 
 def resize_image(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION) -> bytes:
@@ -90,11 +106,12 @@ def resize_image(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION) -> byte
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _db_conn, anthropic_client
+    global _db_conn, anthropic_client, _email_sender
     db_path = os.environ.get("DB_PATH", "caloriessnap.db")
     _db_conn = get_db(db_path)
     init_db(_db_conn)
     anthropic_client = Anthropic()
+    _email_sender = build_email_sender()
     UPLOAD_DIR.mkdir(exist_ok=True)
     yield
     _db_conn.close()
@@ -110,23 +127,88 @@ app.add_middleware(
 )
 
 
-@app.post("/api/register", response_model=AuthResponse, status_code=201)
-def register(req: RegisterRequest, conn=Depends(get_db_conn)):
+VERIFY_SUBJECT = "Verify your CaloriesSnap email"
+RESET_SUBJECT = "Reset your CaloriesSnap password"
+
+logger = logging.getLogger("caloriessnap.email")
+
+
+def _issue_and_send(conn, sender, user_id: int, email: str, purpose: str, subject: str, body_template: str) -> None:
+    """Issue a code (respecting the resend cooldown) and email it. Never raises on
+    send failure — an email-provider outage must not break register/login/reset flows;
+    the user can retry via 'resend'."""
+    code = issue_code(conn, user_id, purpose)
+    if code is None:
+        return  # cooldown active; nothing to send
+    try:
+        sender.send(email, subject, body_template.format(code=code))
+    except Exception:
+        logger.exception("Failed to send %s email to %s", purpose, email)
+
+
+@app.post("/api/register", response_model=RegisterPendingResponse, status_code=201)
+def register(req: RegisterRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)):
     if req.invite_code != INVITE_CODE:
         raise HTTPException(status_code=403, detail="Invalid invite code")
     password_hash = hash_password(req.password)
     user_id = create_user(conn, email=req.email, password_hash=password_hash)
     if user_id is None:
         raise HTTPException(status_code=409, detail="Email already registered")
-    token = create_token(user_id=user_id, email=req.email)
-    return {"token": token, "user": {"id": user_id, "email": req.email}}
+    _issue_and_send(conn, sender, user_id, req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
+    return {"email": req.email, "verification_required": True}
+
+
+@app.post("/api/verify-email", response_model=AuthResponse)
+def verify_email(req: VerifyEmailRequest, conn=Depends(get_db_conn)):
+    user = get_user_by_email(conn, req.email)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    if user["email_verified"]:
+        raise HTTPException(status_code=409, detail="Email already verified")
+    if not verify_code(conn, user["id"], "verify", req.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    set_email_verified(conn, user["id"])
+    token = create_token(user_id=user["id"], email=user["email"])
+    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+
+
+@app.post("/api/resend-verification", response_model=GenericMessageResponse)
+def resend_verification(
+    req: ResendVerificationRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)
+):
+    user = get_user_by_email(conn, req.email)
+    if user is not None and not user["email_verified"]:
+        _issue_and_send(conn, sender, user["id"], req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
+    return {"message": "If that account needs verification, a code was sent."}
+
+
+@app.post("/api/forgot-password", response_model=GenericMessageResponse)
+def forgot_password(
+    req: ForgotPasswordRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)
+):
+    user = get_user_by_email(conn, req.email)
+    if user is not None and user["email_verified"]:
+        _issue_and_send(conn, sender, user["id"], req.email, "reset", RESET_SUBJECT, "Your password reset code is {code}")
+    return {"message": "If that email exists, a code was sent."}
+
+
+@app.post("/api/reset-password", response_model=GenericMessageResponse)
+def reset_password(req: ResetPasswordRequest, conn=Depends(get_db_conn)):
+    user = get_user_by_email(conn, req.email)
+    if user is None or not verify_code(conn, user["id"], "reset", req.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    update_user_password(conn, user["id"], hash_password(req.new_password))
+    return {"message": "Password updated."}
 
 
 @app.post("/api/login", response_model=AuthResponse)
-def login(req: LoginRequest, conn=Depends(get_db_conn)):
+def login(req: LoginRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)):
     user = get_user_by_email(conn, req.email)
     if user is None or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user["email_verified"]:
+        _issue_and_send(conn, sender, user["id"], req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
+        raise HTTPException(status_code=403, detail="email_not_verified")
     token = create_token(user_id=user["id"], email=user["email"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
 
