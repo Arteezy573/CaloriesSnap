@@ -6,7 +6,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from main import app, get_db_conn, get_email_sender
-from database import get_db, init_db, create_user, set_email_verified
+from database import get_db, init_db, create_user, set_email_verified, get_user_by_email
 from auth import hash_password
 from email_service import LoggingEmailSender
 
@@ -170,3 +170,28 @@ async def test_reset_password_wrong_code_400(client, sender):
         "email": "r2@test.com", "code": "000000", "new_password": "brandnew1",
     })
     assert resp.status_code == 400
+
+
+class _RaisingSender:
+    def send(self, to, subject, body):
+        raise RuntimeError("email provider down")
+
+
+@pytest.mark.asyncio
+async def test_register_succeeds_when_email_send_fails(db_path):
+    conn = get_db(db_path)
+    init_db(conn)
+    app.dependency_overrides[get_db_conn] = lambda: conn
+    app.dependency_overrides[get_email_sender] = lambda: _RaisingSender()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/api/register", json={
+                "email": "down@test.com", "password": "secret1", "invite_code": "caloriessnap2026",
+            })
+        assert resp.status_code == 201
+        assert resp.json()["verification_required"] is True
+        # the user row was still created despite the email failure
+        assert get_user_by_email(conn, "down@test.com") is not None
+    finally:
+        app.dependency_overrides.clear()
+        conn.close()

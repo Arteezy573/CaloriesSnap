@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -129,6 +130,21 @@ app.add_middleware(
 VERIFY_SUBJECT = "Verify your CaloriesSnap email"
 RESET_SUBJECT = "Reset your CaloriesSnap password"
 
+logger = logging.getLogger("caloriessnap.email")
+
+
+def _issue_and_send(conn, sender, user_id: int, email: str, purpose: str, subject: str, body_template: str) -> None:
+    """Issue a code (respecting the resend cooldown) and email it. Never raises on
+    send failure — an email-provider outage must not break register/login/reset flows;
+    the user can retry via 'resend'."""
+    code = issue_code(conn, user_id, purpose)
+    if code is None:
+        return  # cooldown active; nothing to send
+    try:
+        sender.send(email, subject, body_template.format(code=code))
+    except Exception:
+        logger.exception("Failed to send %s email to %s", purpose, email)
+
 
 @app.post("/api/register", response_model=RegisterPendingResponse, status_code=201)
 def register(req: RegisterRequest, conn=Depends(get_db_conn), sender=Depends(get_email_sender)):
@@ -138,8 +154,7 @@ def register(req: RegisterRequest, conn=Depends(get_db_conn), sender=Depends(get
     user_id = create_user(conn, email=req.email, password_hash=password_hash)
     if user_id is None:
         raise HTTPException(status_code=409, detail="Email already registered")
-    code = issue_code(conn, user_id, "verify")
-    sender.send(req.email, VERIFY_SUBJECT, f"Your verification code is {code}")
+    _issue_and_send(conn, sender, user_id, req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
     return {"email": req.email, "verification_required": True}
 
 
@@ -163,9 +178,7 @@ def resend_verification(
 ):
     user = get_user_by_email(conn, req.email)
     if user is not None and not user["email_verified"]:
-        code = issue_code(conn, user["id"], "verify")
-        if code is not None:
-            sender.send(req.email, VERIFY_SUBJECT, f"Your verification code is {code}")
+        _issue_and_send(conn, sender, user["id"], req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
     return {"message": "If that account needs verification, a code was sent."}
 
 
@@ -175,9 +188,7 @@ def forgot_password(
 ):
     user = get_user_by_email(conn, req.email)
     if user is not None and user["email_verified"]:
-        code = issue_code(conn, user["id"], "reset")
-        if code is not None:
-            sender.send(req.email, RESET_SUBJECT, f"Your password reset code is {code}")
+        _issue_and_send(conn, sender, user["id"], req.email, "reset", RESET_SUBJECT, "Your password reset code is {code}")
     return {"message": "If that email exists, a code was sent."}
 
 
@@ -196,9 +207,7 @@ def login(req: LoginRequest, conn=Depends(get_db_conn), sender=Depends(get_email
     if user is None or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user["email_verified"]:
-        code = issue_code(conn, user["id"], "verify")
-        if code is not None:
-            sender.send(req.email, VERIFY_SUBJECT, f"Your verification code is {code}")
+        _issue_and_send(conn, sender, user["id"], req.email, "verify", VERIFY_SUBJECT, "Your verification code is {code}")
         raise HTTPException(status_code=403, detail="email_not_verified")
     token = create_token(user_id=user["id"], email=user["email"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
