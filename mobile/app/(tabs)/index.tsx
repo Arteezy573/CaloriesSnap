@@ -166,6 +166,17 @@ export default function DashboardScreen() {
     setEditFoods((prev) => prev.map((f, i) => (i === index ? updated : f)));
   }
 
+  function removeEditFood(index: number) {
+    setEditFoods((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function addEditFood() {
+    setEditFoods((prev) => [
+      ...prev,
+      { name: "", quantity: "1 serving", calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+    ]);
+  }
+
   async function saveEdit() {
     if (!editingMeal) return;
     setSavingEdit(true);
@@ -296,12 +307,29 @@ export default function DashboardScreen() {
             <Text style={type.title}>Edit Meal</Text>
             <ScrollView style={styles.modalScroll}>
               {editFoods.map((food, i) => (
-                <FoodItemRow key={i} item={food} index={i} onUpdate={updateEditFood} editable />
+                <FoodItemRow
+                  key={i}
+                  item={food}
+                  index={i}
+                  onUpdate={updateEditFood}
+                  onRemove={removeEditFood}
+                  editable
+                />
               ))}
+              <TouchableOpacity onPress={addEditFood} style={styles.addIngredient} hitSlop={8}>
+                <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
+                <Text style={styles.addIngredientText}>Add ingredient</Text>
+              </TouchableOpacity>
             </ScrollView>
             <View style={styles.modalActions}>
               <Button title="Cancel" variant="tinted" onPress={() => setEditingMeal(null)} style={{ flex: 1 }} />
-              <Button title="Save" onPress={saveEdit} loading={savingEdit} style={{ flex: 1 }} />
+              <Button
+                title="Save"
+                onPress={saveEdit}
+                loading={savingEdit}
+                disabled={editFoods.length === 0}
+                style={{ flex: 1 }}
+              />
             </View>
           </View>
         </View>
@@ -338,5 +366,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: spacing.l },
   modalCard: { backgroundColor: colors.card, borderRadius: 16, padding: spacing.l, maxHeight: "80%" },
   modalScroll: { flexGrow: 0, marginTop: spacing.m },
+  addIngredient: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: spacing.s, marginTop: spacing.xs },
+  addIngredientText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   modalActions: { flexDirection: "row", gap: spacing.m, marginTop: spacing.l },
 });

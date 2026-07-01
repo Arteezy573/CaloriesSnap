@@ -1,4 +1,5 @@
-import { View, Text, TextInput, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { FoodItem } from "../services/api";
 import { colors } from "../theme";
 
@@ -7,9 +8,10 @@ interface Props {
   index: number;
   onUpdate: (index: number, updated: FoodItem) => void;
   editable: boolean;
+  onRemove?: (index: number) => void;
 }
 
-export default function FoodItemRow({ item, index, onUpdate, editable }: Props) {
+export default function FoodItemRow({ item, index, onUpdate, editable, onRemove }: Props) {
   function update(field: keyof FoodItem, value: string) {
     const numFields = ["calories", "protein_g", "carbs_g", "fat_g"];
     const parsed = numFields.includes(field) ? parseFloat(value) || 0 : value;
@@ -45,6 +47,11 @@ export default function FoodItemRow({ item, index, onUpdate, editable }: Props) 
           keyboardType="numeric"
         />
         <Text style={styles.unit}>kcal</Text>
+        {onRemove && (
+          <TouchableOpacity onPress={() => onRemove(index)} hitSlop={8} style={styles.removeButton}>
+            <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
       <View style={styles.editDetailRow}>
         <TextInput
@@ -103,4 +110,5 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   unit: { color: colors.textSecondary, fontSize: 12, marginLeft: 6 },
+  removeButton: { marginLeft: 10, padding: 2 },
 });
