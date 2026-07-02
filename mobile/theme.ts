@@ -16,6 +16,7 @@ export const colors = {
   protein: "#FF3B30",
   carbs: "#FF9500",
   fat: "#007AFF",
+  underSoft: "#E3F0FF", // soft blue — under-goal days in the calendar heatmap (pairs with `fat`)
   streak: "#FF9500",
   destructive: "#FF3B30",
 
