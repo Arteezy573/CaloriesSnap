@@ -25,6 +25,7 @@ import StreakBadge from "../../components/StreakBadge";
 import MealRow from "../../components/MealRow";
 import FoodItemRow from "../../components/FoodItemRow";
 import ExerciseCard from "../../components/ExerciseCard";
+import CalendarModal from "../../components/CalendarModal";
 import {
   DailySummary,
   Exercise,
@@ -76,6 +77,7 @@ export default function DashboardScreen() {
   const [celebrating, setCelebrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const isToday = selectedDate === todayISO();
 
@@ -251,10 +253,13 @@ export default function DashboardScreen() {
       }
     >
       <View style={styles.header}>
-        <View>
+        <TouchableOpacity onPress={() => setCalendarOpen(true)} activeOpacity={0.6}>
           <Text style={type.label}>{formatDate(selectedDate)}</Text>
-          <Text style={type.largeTitle}>{isToday ? "Today" : "History"}</Text>
-        </View>
+          <View style={styles.titleRow}>
+            <Text style={type.largeTitle}>{isToday ? "Today" : "History"}</Text>
+            <Ionicons name="calendar-outline" size={20} color={colors.accent} style={{ marginLeft: 8 }} />
+          </View>
+        </TouchableOpacity>
         <StreakBadge streak={streak} />
       </View>
 
@@ -357,6 +362,19 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      <CalendarModal
+        visible={calendarOpen}
+        selectedDate={selectedDate}
+        goalCalories={summary.goals.calories}
+        onClose={() => setCalendarOpen(false)}
+        onSelectDate={(date) => {
+          setCalendarOpen(false);
+          setSelectedDate(date);
+          setLoading(true);
+          loadData(date);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -377,6 +395,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.l,
     paddingVertical: spacing.xs,
   },
+  titleRow: { flexDirection: "row", alignItems: "center" },
   arrow: { padding: spacing.s },
   dateNavText: { fontSize: 13, color: colors.accent, fontWeight: "600" },
   ringCard: { marginHorizontal: spacing.l, alignItems: "center", overflow: "hidden" },
