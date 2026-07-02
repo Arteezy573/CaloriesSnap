@@ -390,6 +390,10 @@ export default function SnapScreen() {
   if (hasResults) {
     const scaledFoods = scaleFoods(foods, portionPct / 100);
     const scaledTotal = scaledFoods.reduce((sum, f) => sum + f.calories, 0);
+    // Editing corrects the whole-dish base values; the portion slider then scales them.
+    // Keep the two modes separate so an inline edit never writes a scaled value back into `foods`.
+    const displayFoods = editable ? foods : scaledFoods;
+    const displayTotal = editable ? foods.reduce((sum, f) => sum + f.calories, 0) : scaledTotal;
     return (
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
         {header}
@@ -401,29 +405,33 @@ export default function SnapScreen() {
                 <Text style={styles.warningText}>Low confidence — please review</Text>
               </View>
             )}
-            {scaledFoods.map((food, i) => (
+            {displayFoods.map((food, i) => (
               <FoodItemRow key={i} item={food} index={i} onUpdate={updateFood} editable={editable} />
             ))}
-            <View style={styles.portionRow}>
-              <Text style={type.label}>PORTION YOU ATE</Text>
-              <Text style={styles.portionPct}>{portionPct}%</Text>
-            </View>
-            <Slider
-              minimumValue={0}
-              maximumValue={100}
-              step={5}
-              value={portionPct}
-              onValueChange={setPortionPct}
-              minimumTrackTintColor={colors.accent}
-              maximumTrackTintColor={colors.separator}
-              thumbTintColor={colors.accent}
-            />
-            <Text style={styles.portionCaption}>
-              {portionPct === 100 ? "Whole meal" : `You ate ${portionPct}%`} · {scaledTotal} kcal
-            </Text>
+            {!editable && (
+              <>
+                <View style={styles.portionRow}>
+                  <Text style={type.label}>PORTION YOU ATE</Text>
+                  <Text style={styles.portionPct}>{portionPct}%</Text>
+                </View>
+                <Slider
+                  minimumValue={0}
+                  maximumValue={100}
+                  step={5}
+                  value={portionPct}
+                  onValueChange={setPortionPct}
+                  minimumTrackTintColor={colors.accent}
+                  maximumTrackTintColor={colors.separator}
+                  thumbTintColor={colors.accent}
+                />
+                <Text style={styles.portionCaption}>
+                  {portionPct === 100 ? "Whole meal" : `You ate ${portionPct}%`} · {scaledTotal} kcal
+                </Text>
+              </>
+            )}
             <View style={styles.totalBar}>
               <Text style={type.headline}>Total</Text>
-              <Text style={[type.headline, { color: colors.accent }]}>{scaledTotal} kcal</Text>
+              <Text style={[type.headline, { color: colors.accent }]}>{displayTotal} kcal</Text>
             </View>
           </Card>
 
