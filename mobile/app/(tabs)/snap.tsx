@@ -15,6 +15,8 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Slider from "@react-native-community/slider";
+import { scaleFoods } from "../../services/portion";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -50,6 +52,7 @@ export default function SnapScreen() {
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
   const [editable, setEditable] = useState(false);
+  const [portionPct, setPortionPct] = useState(100);
 
   const [foodName, setFoodName] = useState("");
   const [manCalories, setManCalories] = useState("");
@@ -70,6 +73,7 @@ export default function SnapScreen() {
     setConfidence("");
     setHint("");
     setEditable(false);
+    setPortionPct(100);
     setFoodName("");
     setManCalories("");
     setManProtein("");
@@ -128,7 +132,11 @@ export default function SnapScreen() {
   async function handleSaveMeal() {
     setSaving(true);
     try {
-      await createMeal({ source: "photo", foods, image_path: serverImagePath ?? undefined });
+      await createMeal({
+        source: "photo",
+        foods: scaleFoods(foods, portionPct / 100),
+        image_path: serverImagePath ?? undefined,
+      });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       showToast("Meal logged ✓");
       resetState();
@@ -274,8 +282,6 @@ export default function SnapScreen() {
     setFoods((prev) => prev.map((f, i) => (i === index ? updated : f)));
   }
 
-  const totalCalories = foods.reduce((sum, f) => sum + f.calories, 0);
-
   const header = (
     <View style={{ paddingTop: insets.top + spacing.s, paddingHorizontal: spacing.l }}>
       <Text style={type.largeTitle}>Snap</Text>
@@ -382,6 +388,12 @@ export default function SnapScreen() {
 
   // --- Photo tab: results state ---
   if (hasResults) {
+    const scaledFoods = scaleFoods(foods, portionPct / 100);
+    const scaledTotal = scaledFoods.reduce((sum, f) => sum + f.calories, 0);
+    // Editing corrects the whole-dish base values; the portion slider then scales them.
+    // Keep the two modes separate so an inline edit never writes a scaled value back into `foods`.
+    const displayFoods = editable ? foods : scaledFoods;
+    const displayTotal = editable ? foods.reduce((sum, f) => sum + f.calories, 0) : scaledTotal;
     return (
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
         {header}
@@ -393,12 +405,33 @@ export default function SnapScreen() {
                 <Text style={styles.warningText}>Low confidence — please review</Text>
               </View>
             )}
-            {foods.map((food, i) => (
+            {displayFoods.map((food, i) => (
               <FoodItemRow key={i} item={food} index={i} onUpdate={updateFood} editable={editable} />
             ))}
+            {!editable && (
+              <>
+                <View style={styles.portionRow}>
+                  <Text style={type.label}>PORTION YOU ATE</Text>
+                  <Text style={styles.portionPct}>{portionPct}%</Text>
+                </View>
+                <Slider
+                  minimumValue={0}
+                  maximumValue={100}
+                  step={5}
+                  value={portionPct}
+                  onValueChange={setPortionPct}
+                  minimumTrackTintColor={colors.accent}
+                  maximumTrackTintColor={colors.separator}
+                  thumbTintColor={colors.accent}
+                />
+                <Text style={styles.portionCaption}>
+                  {portionPct === 100 ? "Whole meal" : `You ate ${portionPct}%`} · {scaledTotal} kcal
+                </Text>
+              </>
+            )}
             <View style={styles.totalBar}>
               <Text style={type.headline}>Total</Text>
-              <Text style={[type.headline, { color: colors.accent }]}>{totalCalories} kcal</Text>
+              <Text style={[type.headline, { color: colors.accent }]}>{displayTotal} kcal</Text>
             </View>
           </Card>
 
@@ -414,7 +447,7 @@ export default function SnapScreen() {
 
           <View style={styles.actionsRow}>
             <Button title={editable ? "Done editing" : "Edit"} variant="tinted" onPress={() => setEditable(!editable)} style={{ flex: 1 }} />
-            <Button title={`Log meal · ${totalCalories} kcal`} onPress={handleSaveMeal} loading={saving} style={{ flex: 1.4 }} />
+            <Button title={`Log meal · ${scaledTotal} kcal`} onPress={handleSaveMeal} loading={saving} style={{ flex: 1.4 }} />
           </View>
           <Button title="Save for later" variant="plain" onPress={handleSaveForLater} style={{ marginTop: spacing.s }} />
           <Button title="Take another photo" variant="plain" onPress={resetState} />
@@ -481,6 +514,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.separator,
     marginTop: spacing.s,
   },
+  portionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.m },
+  portionPct: { fontSize: 15, fontWeight: "700", color: colors.accent },
+  portionCaption: { fontSize: 13, color: colors.textSecondary, marginBottom: spacing.xs },
   actionsRow: { flexDirection: "row", gap: spacing.m, marginTop: spacing.l },
   macroFieldsRow: { flexDirection: "row", gap: spacing.s },
   tipCard: { backgroundColor: colors.accentSoft, marginTop: spacing.s, padding: spacing.m },
