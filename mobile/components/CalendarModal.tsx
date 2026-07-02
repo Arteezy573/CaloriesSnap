@@ -56,6 +56,7 @@ export default function CalendarModal({ visible, selectedDate, goalCalories, onS
   // Fetch this month's history whenever the visible month changes while open.
   useEffect(() => {
     if (!visible) return;
+    let ignore = false;
     const grid = buildMonthGrid(year, month);
     const flat = grid.flat().filter((c): c is string => c !== null);
     const start = flat[0];
@@ -63,12 +64,20 @@ export default function CalendarModal({ visible, selectedDate, goalCalories, onS
     setLoading(true);
     getHistory(start, end)
       .then((entries: HistoryEntry[]) => {
+        if (ignore) return;
         const map: Record<string, number> = {};
         for (const e of entries) map[e.date] = e.calories;
         setCalByDate(map);
       })
-      .catch(() => setCalByDate({}))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!ignore) setCalByDate({});
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [visible, year, month]);
 
   function shiftMonth(delta: number) {
