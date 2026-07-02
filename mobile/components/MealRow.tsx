@@ -34,9 +34,10 @@ interface Props {
   isLast: boolean;
   onEdit: (meal: Meal) => void;
   onDelete: (id: number) => void;
+  onCopy?: (meal: Meal) => void;
 }
 
-export default function MealRow({ meal, isLast, onEdit, onDelete }: Props) {
+export default function MealRow({ meal, isLast, onEdit, onDelete, onCopy }: Props) {
   const title = meal.foods[0]?.name ?? "Meal";
   const time = new Date(meal.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -56,7 +57,12 @@ export default function MealRow({ meal, isLast, onEdit, onDelete }: Props) {
         </View>
         <Text style={styles.kcal}>{meal.total_calories}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => onDelete(meal.id)} style={styles.deleteBtn} hitSlop={8}>
+      {onCopy && (
+        <TouchableOpacity onPress={() => onCopy(meal)} style={styles.actionBtn} hitSlop={8}>
+          <Ionicons name="copy-outline" size={18} color={colors.accent} />
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity onPress={() => onDelete(meal.id)} style={styles.actionBtn} hitSlop={8}>
         <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
       </TouchableOpacity>
     </View>
@@ -80,5 +86,5 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontWeight: "600", color: colors.text },
   detail: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   kcal: { fontSize: 15, fontWeight: "700", color: colors.text },
-  deleteBtn: { paddingLeft: 12, paddingVertical: 4 },
+  actionBtn: { paddingLeft: 12, paddingVertical: 4 },
 });

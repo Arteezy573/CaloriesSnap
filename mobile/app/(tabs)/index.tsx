@@ -30,6 +30,7 @@ import {
   Exercise,
   FoodItem,
   Meal,
+  createMeal,
   deleteMeal,
   getDailySummary,
   getExercises,
@@ -192,6 +193,21 @@ export default function DashboardScreen() {
     }
   }
 
+  async function copyMealToToday(meal: Meal) {
+    try {
+      await createMeal({
+        source: meal.source,
+        image_path: meal.image_path ?? undefined,
+        foods: meal.foods,
+        notes: meal.notes ?? undefined,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast("Copied to today ✓");
+    } catch (e: any) {
+      Alert.alert("Error", "Could not copy meal: " + e.message);
+    }
+  }
+
   function confirmDelete(mealId: number) {
     Alert.alert("Delete meal?", "This can't be undone.", [
       { text: "Cancel", style: "cancel" },
@@ -287,7 +303,14 @@ export default function DashboardScreen() {
       ) : (
         <Card style={styles.mealsCard}>
           {meals.map((meal, i) => (
-            <MealRow key={meal.id} meal={meal} isLast={i === meals.length - 1} onEdit={openEdit} onDelete={confirmDelete} />
+            <MealRow
+              key={meal.id}
+              meal={meal}
+              isLast={i === meals.length - 1}
+              onEdit={openEdit}
+              onDelete={confirmDelete}
+              onCopy={isToday ? undefined : copyMealToToday}
+            />
           ))}
         </Card>
       )}
